@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Filter, Search } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -54,7 +54,15 @@ import {
   Printer,
   Loader2,
   LayoutGrid,
-  Table as TableIcon
+  Table as TableIcon,
+  Plus,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText
 } from 'lucide-react';
 import Image from 'next/image';
 import {
@@ -65,6 +73,15 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { motion } from 'framer-motion';
 
 interface Enrollment {
   id: string;
@@ -139,15 +156,45 @@ export default function EnrollmentPage() {
   });
   const [viewLoading, setViewLoading] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const supabase = createClientComponentClient();
 
   const fetchEnrollments = async () => {
     try {
       setLoading(true);
-      const data = await enrollmentService.getAllEnrollments();
-      setEnrollments(data);
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, id')
+        .eq('id', session.user.id)
+        .single();
+
+      setUserRole(profile?.role);
+      setUserId(session.user.id);
+
+      if (profile?.role === 'rotc_coordinator') {
+        const { data } = await supabase
+          .from('enrollments')
+          .select('*')
+          .order('created_at', { ascending: false });
+        setEnrollments(data || []);
+      } else {
+        const { data } = await supabase
+          .from('enrollments')
+          .select('*')
+          .eq('profile_id', session.user.id)
+          .order('created_at', { ascending: false });
+        setEnrollments(data || []);
+      }
     } catch (error) {
-      console.error('Error fetching enrollments:', error);
-      toast.error('Failed to load enrollments');
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -204,57 +251,110 @@ export default function EnrollmentPage() {
     window.print();
   };
 
+  const isCoordinator = userRole === 'rotc_coordinator';
+
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'approved':
+        return (
+          <Badge variant="success" className="gap-1">
+            <CheckCircle className="w-3 h-3" />
+            Approved
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge variant="destructive" className="gap-1">
+            <XCircle className="w-3 h-3" />
+            Rejected
+          </Badge>
+        );
+      default:
+        return (
+          <Badge
+            // variant="secondary"
+
+            className="gap-1 bg-yellow-500">
+            <Clock className="w-3 h-3" />
+            Pending
+          </Badge>
+        );
+    }
+  };
+
+  const canApply =
+    !isCoordinator &&
+    !enrollments.some(app =>
+      ['pending', 'approved'].includes(app.status?.toLowerCase())
+    );
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold">Enrollment Applications</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage ROTC enrollment applications and inquiries
-          </p>
-        </div>
-        <EnrollmentForm onSuccess={fetchEnrollments} />
-      </div>
-
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            placeholder="Search applications..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center gap-1 border rounded-lg">
-          <Button
-            variant={viewMode === 'grid' ? 'default' : 'ghost'}
-            size="sm"
-            className="rounded-r-none"
-            onClick={() => setViewMode('grid')}>
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'default' : 'ghost'}
-            size="sm"
-            className="rounded-l-none"
-            onClick={() => setViewMode('table')}>
-            <TableIcon className="h-4 w-4" />
-          </Button>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-6 p-8">
+      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-8 rounded-lg">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {isCoordinator ? 'Enrollment Applications' : 'ROTC Enrollment'}
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              {isCoordinator
+                ? 'Review and manage ROTC enrollment applications'
+                : 'Apply and track your ROTC enrollment status'}
+            </p>
+          </div>
+          {/* {canApply && (
+            <Button
+              onClick={() => setViewDialog({ isOpen: true, enrollment: null })}
+              className="shadow-lg hover:shadow-xl transition-all">
+              <Plus className="w-4 h-4 mr-2" />
+              Apply for ROTC
+            </Button>
+          )} */}
         </div>
       </div>
+
+      <Card className="overflow-hidden border-none shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search applications..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            {isCoordinator && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Filter className="w-4 h-4 mr-2" />
+                    {filterStatus === 'all' ? 'All Status' : filterStatus}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => setFilterStatus('all')}>
+                    All Status
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setFilterStatus('pending')}>
+                    Pending
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setFilterStatus('approved')}>
+                    Approved
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setFilterStatus('rejected')}>
+                    Rejected
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <AlertDialog
         open={confirmationDialog.isOpen}
@@ -296,7 +396,6 @@ export default function EnrollmentPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View Details Dialog */}
       <Dialog
         open={viewDialog.isOpen}
         onOpenChange={isOpen => setViewDialog(prev => ({ ...prev, isOpen }))}>
@@ -317,7 +416,6 @@ export default function EnrollmentPage() {
             </div>
           ) : viewDialog.enrollment ? (
             <div className="space-y-8">
-              {/* Header with Logos */}
               <div className="text-center space-y-2 border-b pb-4">
                 <h2 className="text-xl font-bold">
                   CENTRAL BICOL STATE UNIVERSITY OF AGRICULTURE
@@ -328,21 +426,10 @@ export default function EnrollmentPage() {
                 </p>
               </div>
 
-              {/* Status Badge */}
               <div className="flex justify-end">
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    viewDialog.enrollment.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : viewDialog.enrollment.status === 'approved'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                  {viewDialog.enrollment.status.toUpperCase()}
-                </span>
+                {getStatusBadge(viewDialog.enrollment.status)}
               </div>
 
-              {/* Basic Information */}
               <Section
                 title="Basic Information"
                 icon={<User className="w-5 h-5" />}>
@@ -367,7 +454,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Personal Information */}
               <Section
                 title="Personal Information"
                 icon={<GraduationCap className="w-5 h-5" />}>
@@ -405,7 +491,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Address Information */}
               <Section title="Address" icon={<MapPin className="w-5 h-5" />}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoField
@@ -421,7 +506,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Physical Information */}
               <Section
                 title="Physical Information"
                 icon={<Heart className="w-5 h-5" />}>
@@ -449,7 +533,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Family Information */}
               <Section
                 title="Family Background"
                 icon={<Users className="w-5 h-5" />}>
@@ -477,7 +560,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Emergency Contact */}
               <Section
                 title="Emergency Contact"
                 icon={<AlertCircle className="w-5 h-5" />}>
@@ -505,7 +587,6 @@ export default function EnrollmentPage() {
                 </div>
               </Section>
 
-              {/* Action Buttons */}
               {viewDialog.enrollment.status === 'pending' && (
                 <div className="flex justify-end gap-2 pt-4 border-t">
                   <Button
@@ -610,17 +691,7 @@ export default function EnrollmentPage() {
               <CardHeader>
                 <CardTitle className="flex justify-between items-center">
                   <span>{`${enrollment.first_name} ${enrollment.last_name}`}</span>
-                  <span
-                    className={`text-sm px-2 py-1 rounded-full ${
-                      enrollment.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : enrollment.status === 'approved'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                    {enrollment.status.charAt(0).toUpperCase() +
-                      enrollment.status.slice(1)}
-                  </span>
+                  {getStatusBadge(enrollment.status)}
                 </CardTitle>
                 <CardDescription>{enrollment.student_no}</CardDescription>
               </CardHeader>
@@ -648,7 +719,7 @@ export default function EnrollmentPage() {
                       <Eye className="w-4 h-4 mr-2" />
                       View Details
                     </Button>
-                    {enrollment.status === 'pending' && (
+                    {isCoordinator && enrollment.status === 'pending' && (
                       <div className="flex gap-2 flex-1">
                         <Button
                           className="flex-1"
@@ -696,19 +767,7 @@ export default function EnrollmentPage() {
                   </TableCell>
                   <TableCell>{enrollment.student_no}</TableCell>
                   <TableCell>{enrollment.course}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                        enrollment.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : enrollment.status === 'approved'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                      {enrollment.status.charAt(0).toUpperCase() +
-                        enrollment.status.slice(1)}
-                    </span>
-                  </TableCell>
+                  <TableCell>{getStatusBadge(enrollment.status)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
@@ -745,11 +804,25 @@ export default function EnrollmentPage() {
           </Table>
         </div>
       )}
-    </div>
+
+      <EnrollmentForm
+        open={viewDialog.isOpen}
+        onOpenChange={isOpen => {
+          setViewDialog(prev => ({ ...prev, isOpen }));
+          if (!isOpen) setViewLoading(false);
+        }}
+        enrollment={viewDialog.enrollment}
+        userId={userId}
+        onSuccess={fetchEnrollments}
+        onError={() => {
+          setViewLoading(false);
+          toast.error('Failed to update enrollment');
+        }}
+      />
+    </motion.div>
   );
 }
 
-// Helper component for info fields
 interface InfoFieldProps {
   icon?: React.ReactNode;
   label: string;
@@ -768,7 +841,6 @@ function InfoField({ icon, label, value }: InfoFieldProps) {
   );
 }
 
-// Add specific icons for each field type
 const fieldIcons = {
   student: <User className="w-4 h-4" />,
   academic: <School className="w-4 h-4" />,

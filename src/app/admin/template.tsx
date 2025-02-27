@@ -73,6 +73,11 @@ const adminLinks = [
 
 const cadetLinks = [
   {
+    label: 'Dashboard',
+    href: '/admin',
+    icon: RiDashboardLine
+  },
+  {
     label: 'Announcements',
     href: '/admin/announcements',
     icon: MegaphoneIcon
