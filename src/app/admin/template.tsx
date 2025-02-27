@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   RiDashboardLine,
   RiSettings4Line,
@@ -27,7 +27,7 @@ import {
   Building2
 } from 'lucide-react';
 
-const sidebarLinks = [
+const adminLinks = [
   {
     label: 'Dashboard',
     href: '/admin',
@@ -71,6 +71,32 @@ const sidebarLinks = [
   }
 ];
 
+const cadetLinks = [
+  {
+    label: 'Announcements',
+    href: '/admin/announcements',
+    icon: MegaphoneIcon
+  },
+  {
+    label: 'Enrollment',
+    href: '/admin/enrollment',
+    icon: MdOutlineAssignment,
+    description: 'ROTC inquiries and applications'
+  },
+  {
+    label: 'Attendance',
+    href: '/admin/attendance',
+    icon: ClipboardCheckIcon,
+    description: 'Training attendance records'
+  },
+  {
+    label: 'Grades and Rankings',
+    href: '/admin/grades',
+    icon: TrophyIcon,
+    description: 'Cadet evaluations and rankings'
+  }
+];
+
 export default function AdminTemplate({
   children
 }: {
@@ -80,6 +106,39 @@ export default function AdminTemplate({
   const [isLoading, setIsLoading] = useState(false);
   const pathname = usePathname();
   const supabase = createClientComponentClient();
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error('No session found');
+        }
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        console.log({ jhaaamsss: profile.role });
+
+        setRole(profile.role);
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+        toast.error('Failed to fetch user role');
+      }
+    };
+
+    fetchUserRole();
+  }, [supabase]);
 
   const handleLogout = async () => {
     try {
@@ -95,6 +154,7 @@ export default function AdminTemplate({
     }
   };
 
+  const links = role === 'rotc_coordinator' ? adminLinks : cadetLinks;
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
@@ -110,7 +170,7 @@ export default function AdminTemplate({
           {/* Sidebar Links */}
           <div className="flex-1 overflow-y-auto p-4">
             <nav className="space-y-2">
-              {sidebarLinks.map(link => (
+              {links.map(link => (
                 <Link
                   key={link.href}
                   href={link.href}

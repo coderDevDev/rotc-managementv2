@@ -154,13 +154,10 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell>{student.student_no}</TableCell>
                     {/* <TableCell>{student.course}</TableCell> */}
-                    <TableCell>{student.year_level}</TableCell>
+                    <TableCell>{student.year_level || '1st'}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          student.status === 'active' ? 'success' : 'secondary'
-                        }>
-                        {student.status}
+                      <Badge variant={'success'}>
+                        {/* {student.status || 'active'} */}Active
                       </Badge>
                     </TableCell>
                     <TableCell>{student.contact_no || student.phone}</TableCell>

@@ -268,7 +268,7 @@ export function GradeForm({
                             value={[field.value]}
                             onValueChange={([value]) => field.onChange(value)}
                           />
-                          <div className="text-sm text-right">
+                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
                             {field.value}%
                           </div>
                         </div>
@@ -295,7 +295,7 @@ export function GradeForm({
                             value={[field.value]}
                             onValueChange={([value]) => field.onChange(value)}
                           />
-                          <div className="text-sm text-right">
+                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
                             {field.value}%
                           </div>
                         </div>
@@ -322,7 +322,7 @@ export function GradeForm({
                             value={[field.value]}
                             onValueChange={([value]) => field.onChange(value)}
                           />
-                          <div className="text-sm text-right">
+                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
                             {field.value}%
                           </div>
                         </div>
