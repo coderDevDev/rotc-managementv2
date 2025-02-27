@@ -14,14 +14,15 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-interface AnalyticsProps {
+interface AnalyticsChartsProps {
   performanceData: {
     category: string;
     average: number;
-    count: number;
+    passing: number;
+    total: number;
   }[];
   trendData: {
-    date: string;
+    term: string;
     academics: number;
     leadership: number;
     physical_fitness: number;
@@ -31,12 +32,13 @@ interface AnalyticsProps {
 export function AnalyticsCharts({
   performanceData,
   trendData
-}: AnalyticsProps) {
+}: AnalyticsChartsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid gap-6">
+      {/* Category Performance */}
       <Card>
         <CardHeader>
-          <CardTitle>Performance by Category</CardTitle>
+          <CardTitle>Category Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -47,43 +49,58 @@ export function AnalyticsCharts({
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="average" fill="#3b82f6" name="Average Score" />
+                <Bar
+                  name="Average Score"
+                  dataKey="average"
+                  fill="#2563eb"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  name="Passing Rate"
+                  dataKey="passing"
+                  fill="#16a34a"
+                  radius={[4, 4, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
+      {/* Performance Trends */}
       <Card>
         <CardHeader>
-          <CardTitle>Score Trends</CardTitle>
+          <CardTitle>Performance Trends</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
+                <XAxis dataKey="term" />
                 <YAxis />
                 <Tooltip />
                 <Legend />
                 <Line
                   type="monotone"
-                  dataKey="academics"
-                  stroke="#3b82f6"
                   name="Academics"
+                  dataKey="academics"
+                  stroke="#2563eb"
+                  strokeWidth={2}
                 />
                 <Line
                   type="monotone"
-                  dataKey="leadership"
-                  stroke="#10b981"
                   name="Leadership"
+                  dataKey="leadership"
+                  stroke="#16a34a"
+                  strokeWidth={2}
                 />
                 <Line
                   type="monotone"
-                  dataKey="physical_fitness"
-                  stroke="#f59e0b"
                   name="Physical Fitness"
+                  dataKey="physical_fitness"
+                  stroke="#d97706"
+                  strokeWidth={2}
                 />
               </LineChart>
             </ResponsiveContainer>

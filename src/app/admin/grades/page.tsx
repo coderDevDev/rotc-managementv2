@@ -48,95 +48,30 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { columns } from './components/columns';
 
-const columns: ColumnDef<GradeEntry>[] = [
-  {
-    accessorKey: 'cadet.full_name',
-    header: 'Cadet',
-    cell: ({ row }) => (
-      <div>
-        <div className="font-medium">{row.original.cadet?.full_name}</div>
-        <div className="text-sm text-muted-foreground">
-          {row.original.cadet?.student_no}
-        </div>
-      </div>
-    )
-  },
-  {
-    accessorKey: 'category_id',
-    header: 'Category',
-    cell: ({ row }) => (
-      <span className="capitalize">
-        {(row.getValue('category_id') as string).replace('_', ' ')}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'score',
-    header: 'Score',
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div
-            className="bg-primary h-2.5 rounded-full"
-            style={{ width: `${row.getValue('score')}%` }}
-          />
-        </div>
-        <span className="text-sm font-medium">{row.getValue('score')}%</span>
-      </div>
-    )
-  },
-  {
-    accessorKey: 'instructor.full_name',
-    header: 'Instructor'
-  },
-  {
-    accessorKey: 'instructor_notes',
-    header: 'Notes'
-  },
-  {
-    accessorKey: 'updated_at',
-    header: 'Last Updated',
-    cell: ({ row }) => {
-      const date = new Date(row.getValue('updated_at'));
-      return date.toLocaleDateString();
-    }
-  },
-  {
-    id: 'actions',
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setSelectedGrade(row.original);
-            setFormOpen(true);
-          }}>
-          Edit
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive"
-          onClick={() => {
-            setSelectedGrade(row.original);
-            setDeleteDialogOpen(true);
-          }}>
-          Delete
-        </Button>
-      </div>
-    )
-  }
-];
+interface GroupedGrade {
+  id: string;
+  student_name: string;
+  student_no: string;
+  term: string;
+  grades: {
+    academics: { id: string; score: number } | null;
+    leadership: { id: string; score: number } | null;
+    physical_fitness: { id: string; score: number } | null;
+  };
+  instructor_notes: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export default function GradesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [grades, setGrades] = useState<GradeEntry[]>([]);
+  const [grades, setGrades] = useState<GroupedGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState<GradeEntry | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState<GroupedGrade | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [currentTerm, setCurrentTerm] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,34 +105,15 @@ export default function GradesPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const term = await gradeService.getCurrentTerm();
-      setCurrentTerm(term);
-
-      // Fetch all data for the current term
-      const [gradesData, performanceData, statsData] = await Promise.all([
-        gradeService.getGrades({ term }),
-        gradeService.getTermPerformance({ term }),
-        gradeService.getStats(term)
+      const [gradesData, termData] = await Promise.all([
+        gradeService.getGrades(),
+        gradeService.getCurrentTerm()
       ]);
-
       setGrades(gradesData);
-      setLeaderboard(performanceData);
-      setStats(statsData);
-
-      // Prepare analytics data
-      setAnalyticsData({
-        performanceData: Object.entries(statsData.categoryAverages).map(
-          ([category, average]) => ({
-            category,
-            average,
-            count: gradesData.filter(g => g.category_id === category).length
-          })
-        ),
-        trendData: [] // TODO: Implement trend data
-      });
+      setCurrentTerm(termData);
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      toast.error('Failed to load grades');
     } finally {
       setLoading(false);
     }
@@ -211,29 +127,151 @@ export default function GradesPage() {
   const filteredGrades = useMemo(() => {
     return grades.filter(grade => {
       const matchesSearch = searchQuery
-        ? grade.cadet?.full_name
-            ?.toLowerCase()
+        ? grade.student_name
+            .toLowerCase()
             .includes(searchQuery.toLowerCase()) ||
-          grade.cadet?.student_no
-            ?.toLowerCase()
-            .includes(searchQuery.toLowerCase())
+          grade.student_no.toLowerCase().includes(searchQuery.toLowerCase())
         : true;
 
       const matchesCategory = selectedCategory
-        ? grade.category_id === selectedCategory
+        ? grade.grades.academics?.id === selectedCategory ||
+          grade.grades.leadership?.id === selectedCategory ||
+          grade.grades.physical_fitness?.id === selectedCategory
         : true;
 
       return matchesSearch && matchesCategory;
     });
   }, [grades, searchQuery, selectedCategory]);
 
+  // Update stats when grades change
+  useEffect(() => {
+    setStats({
+      totalCadets: grades.length,
+      averageScore: Math.round(
+        grades.reduce((sum, grade) => {
+          const scores = [
+            grade.grades.academics?.score,
+            grade.grades.leadership?.score,
+            grade.grades.physical_fitness?.score
+          ].filter(Boolean);
+          return (
+            sum +
+            (scores.length
+              ? scores.reduce((a, b) => a + b, 0) / scores.length
+              : 0)
+          );
+        }, 0) / (grades.length || 1)
+      ),
+      passRate: Math.round(
+        (grades.filter(grade => {
+          const scores = [
+            grade.grades.academics?.score,
+            grade.grades.leadership?.score,
+            grade.grades.physical_fitness?.score
+          ].filter(Boolean);
+          const avg = scores.length
+            ? scores.reduce((a, b) => a + b, 0) / scores.length
+            : 0;
+          return avg >= 75;
+        }).length /
+          (grades.length || 1)) *
+          100
+      ),
+      recentUpdates: grades.filter(
+        grade =>
+          new Date(grade.updated_at) >
+          new Date(Date.now() - 24 * 60 * 60 * 1000)
+      ).length,
+      categoryAverages: {
+        academics: calculateCategoryAverage('academics'),
+        leadership: calculateCategoryAverage('leadership'),
+        physical_fitness: calculateCategoryAverage('physical_fitness')
+      }
+    });
+  }, [grades]);
+
+  // Helper function to calculate category averages
+  const calculateCategoryAverage = (
+    category: keyof typeof stats.categoryAverages
+  ) => {
+    const scores = grades
+      .map(grade => grade.grades[category]?.score)
+      .filter(Boolean);
+    return scores.length
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : 0;
+  };
+
+  // Calculate analytics data when grades change
+  useEffect(() => {
+    // Performance data
+    const performanceData = [
+      {
+        category: 'Academics',
+        average: stats.categoryAverages.academics,
+        passing: grades.filter(g => (g.grades.academics?.score || 0) >= 75)
+          .length,
+        total: grades.length
+      },
+      {
+        category: 'Leadership',
+        average: stats.categoryAverages.leadership,
+        passing: grades.filter(g => (g.grades.leadership?.score || 0) >= 75)
+          .length,
+        total: grades.length
+      },
+      {
+        category: 'Physical Fitness',
+        average: stats.categoryAverages.physical_fitness,
+        passing: grades.filter(
+          g => (g.grades.physical_fitness?.score || 0) >= 75
+        ).length,
+        total: grades.length
+      }
+    ];
+
+    // Trend data (you'll need to fetch historical data)
+    const trendData = [
+      {
+        term: currentTerm,
+        academics: stats.categoryAverages.academics,
+        leadership: stats.categoryAverages.leadership,
+        physical_fitness: stats.categoryAverages.physical_fitness
+      }
+    ];
+
+    setAnalyticsData({
+      performanceData,
+      trendData
+    });
+
+    // Calculate leaderboard data
+    const leaderboardData = grades
+      .map(grade => ({
+        student_id: grade.id,
+        student_name: grade.student_name,
+        student_no: grade.student_no,
+        term: grade.term,
+        grades: grade.grades,
+        overall_score:
+          Object.values(grade.grades)
+            .filter(g => g?.score)
+            .reduce((sum, g) => sum + (g?.score || 0), 0) /
+            Object.values(grade.grades).filter(g => g?.score).length || 0
+      }))
+      .sort((a, b) => b.overall_score - a.overall_score)
+      .slice(0, 10);
+
+    setLeaderboard(leaderboardData);
+  }, [grades, stats, currentTerm]);
+
   // Actions
-  const handleEdit = (grade: GradeEntry) => {
+  const handleEdit = (grade: GroupedGrade) => {
     setSelectedGrade(grade);
     setFormOpen(true);
   };
 
-  const handleDelete = async (grade: GradeEntry) => {
+  const handleDelete = async (grade: GroupedGrade) => {
     try {
       await gradeService.deleteGrade(grade.id);
       toast.success('Grade deleted successfully');
@@ -268,20 +306,13 @@ export default function GradesPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">Cadet Performance</h1>
+          <h1 className="text-2xl font-semibold">Grades</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage and track cadet grades and evaluations
+            Manage and track cadet performance
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button
-            onClick={() => {
-              setFormOpen(true);
-            }}>
+          <Button onClick={() => setFormOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Grade
           </Button>
@@ -289,7 +320,7 @@ export default function GradesPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-500">
@@ -321,17 +352,6 @@ export default function GradesPage() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.passRate}%</div>
             <p className="text-xs text-gray-500 mt-1">Above passing grade</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
-              Recent Updates
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.recentUpdates}</div>
-            <p className="text-xs text-gray-500 mt-1">In the last 24 hours</p>
           </CardContent>
         </Card>
       </div>
@@ -395,7 +415,16 @@ export default function GradesPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : (
-            <GradesTable columns={columns} data={filteredGrades} />
+            <GradesTable
+              columns={columns}
+              data={filteredGrades.map(grade => ({
+                ...grade,
+                onEdit: () => {
+                  setSelectedGrade(grade);
+                  setFormOpen(true);
+                }
+              }))}
+            />
           )}
         </TabsContent>
 
@@ -414,13 +443,17 @@ export default function GradesPage() {
       {/* Grade Form Dialog */}
       <GradeForm
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={open => {
+          setFormOpen(open);
+          if (!open) setSelectedGrade(null);
+        }}
         grade={selectedGrade}
         onSuccess={() => {
+          fetchData();
           setFormOpen(false);
           setSelectedGrade(null);
-          fetchData();
         }}
+        defaultTerm={currentTerm}
       />
 
       {/* Delete Confirmation Dialog */}

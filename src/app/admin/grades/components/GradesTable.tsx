@@ -24,11 +24,13 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 interface GradesTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  handleEdit: (grade: TData) => void;
 }
 
 export function GradesTable<TData, TValue>({
   columns,
-  data
+  data,
+  handleEdit
 }: GradesTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
 

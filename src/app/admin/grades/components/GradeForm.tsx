@@ -39,18 +39,16 @@ const supabase = createClientComponentClient();
 
 const schema = z.object({
   user_id: z.string().min(1, 'Student is required'),
-  category_id: z.enum(['academics', 'leadership', 'physical_fitness']),
-  score: z.number().min(0).max(100),
-  instructor_notes: z.string().optional(),
-  term: z.string().min(1, 'Term is required')
+  academics_score: z.number().min(0).max(100),
+  leadership_score: z.number().min(0).max(100),
+  physical_fitness_score: z.number().min(0).max(100),
+  instructor_notes: z.string().optional()
 });
-
-type FormData = z.infer<typeof schema>;
 
 interface GradeFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  grade?: GradeEntry;
+  grade?: GradeEntry | null;
   onSuccess: () => void;
   defaultTerm?: string;
   defaultUserId?: string;
@@ -64,31 +62,44 @@ export function GradeForm({
   defaultTerm,
   defaultUserId
 }: GradeFormProps) {
-  const [activeTab, setActiveTab] = useState<GradeCategory>('academics');
+  const [activeTab, setActiveTab] = useState<
+    'academics' | 'leadership' | 'physical_fitness'
+  >('academics');
   const [students, setStudents] = useState<
     Array<{ id: string; full_name: string; student_no: string }>
   >([]);
   const [loading, setLoading] = useState(false);
 
-  const form = useForm<FormData>({
+  const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       user_id: defaultUserId || '',
-      category_id: 'academics',
-      score: 0,
-      instructor_notes: '',
-      term: defaultTerm || new Date().getFullYear() + '-1'
+      academics_score: 0,
+      leadership_score: 0,
+      physical_fitness_score: 0,
+      instructor_notes: ''
     }
   });
 
-  // Fetch students when form opens
   useEffect(() => {
     if (open) {
       const fetchStudents = async () => {
         try {
           setLoading(true);
-          const data = await gradeService.getStudents();
-          setStudents(data);
+          const [studentsData, gradesData] = await Promise.all([
+            gradeService.getStudents(),
+            gradeService.getGrades({ term: defaultTerm })
+          ]);
+
+          // Filter out students who already have grades for this term
+          const studentsWithGrades = new Set(gradesData.map(grade => grade.id));
+
+          const availableStudents = studentsData.filter(
+            student =>
+              !studentsWithGrades.has(student.id) || student.id === grade?.id
+          );
+
+          setStudents(availableStudents);
         } catch (error) {
           console.error('Error fetching students:', error);
           toast.error('Failed to load students');
@@ -98,55 +109,89 @@ export function GradeForm({
       };
       fetchStudents();
     }
-  }, [open]);
+  }, [open, defaultTerm, grade]);
 
-  // Set form values when editing
   useEffect(() => {
     if (grade) {
       form.reset({
-        user_id: grade.user_id,
-        category_id: grade.category_id,
-        score: grade.score,
-        instructor_notes: grade.instructor_notes || '',
-        term: grade.term
+        user_id: grade.id,
+        academics_score: grade.grades.academics?.score || 0,
+        leadership_score: grade.grades.leadership?.score || 0,
+        physical_fitness_score: grade.grades.physical_fitness?.score || 0,
+        instructor_notes: grade.instructor_notes || ''
       });
-      setActiveTab(grade.category_id);
     }
   }, [grade, form]);
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: z.infer<typeof schema>) => {
     try {
-      // Get current session user as instructor
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
+      setLoading(true);
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.user) throw new Error('No user session');
 
-      if (!session?.user?.id) {
-        toast.error('You must be logged in to add grades');
-        return;
-      }
-
-      const gradeData = {
-        ...data,
-        instructor_id: session.user.id
-      };
+      const instructor_id = session.session.user.id;
+      const term = defaultTerm || (await gradeService.getCurrentTerm());
 
       if (grade) {
-        await gradeService.updateGrade(grade.id, gradeData);
-        toast.success('Grade updated successfully');
+        // Update existing grades
+        await gradeService.updateGrades(grade.id, {
+          academics: {
+            score: data.academics_score,
+            instructor_id
+          },
+          leadership: {
+            score: data.leadership_score,
+            instructor_id
+          },
+          physical_fitness: {
+            score: data.physical_fitness_score,
+            instructor_id
+          },
+          instructor_notes: data.instructor_notes,
+          term
+        });
+        toast.success('Grades updated successfully');
       } else {
-        await gradeService.addGrade(gradeData);
-        toast.success('Grade added successfully');
+        // Create new grade entries
+        const gradeEntries = [
+          {
+            user_id: data.user_id,
+            instructor_id,
+            category_id: 'academics' as const,
+            term,
+            score: data.academics_score,
+            instructor_notes: data.instructor_notes
+          },
+          {
+            user_id: data.user_id,
+            instructor_id,
+            category_id: 'leadership' as const,
+            term,
+            score: data.leadership_score,
+            instructor_notes: data.instructor_notes
+          },
+          {
+            user_id: data.user_id,
+            instructor_id,
+            category_id: 'physical_fitness' as const,
+            term,
+            score: data.physical_fitness_score,
+            instructor_notes: data.instructor_notes
+          }
+        ];
+
+        await Promise.all(
+          gradeEntries.map(gradeData => gradeService.addGrade(gradeData))
+        );
+        toast.success('Grades added successfully');
       }
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error saving grade:', error);
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('Failed to save grade');
-      }
+      console.error('Error saving grades:', error);
+      toast.error('Failed to save grades');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -154,11 +199,9 @@ export function GradeForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[625px]">
         <DialogHeader>
-          <DialogTitle>{grade ? 'Edit Grade' : 'Add Grade'}</DialogTitle>
+          <DialogTitle>{grade ? 'Edit' : 'Add'} Grade</DialogTitle>
         </DialogHeader>
-        <Tabs
-          value={activeTab}
-          onValueChange={val => setActiveTab(val as GradeCategory)}>
+        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
           <TabsList className="grid w-full grid-cols-3 bg-primary text-white">
             <TabsTrigger value="academics">Academics</TabsTrigger>
             <TabsTrigger value="leadership">Leadership</TabsTrigger>
@@ -191,7 +234,9 @@ export function GradeForm({
                           </SelectItem>
                         ) : students.length === 0 ? (
                           <SelectItem disabled value="empty">
-                            No students found
+                            {grade
+                              ? 'No student found'
+                              : 'All students already have grades for this term'}
                           </SelectItem>
                         ) : (
                           students.map(student => (
@@ -207,40 +252,86 @@ export function GradeForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="score"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Score</FormLabel>
-                    <FormControl>
-                      <div className="space-y-4">
-                        <Slider
-                          min={0}
-                          max={100}
-                          step={1}
-                          value={[field.value]}
-                          onValueChange={([value]) => field.onChange(value)}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            {...field}
-                            onChange={e =>
-                              field.onChange(Number(e.target.value))
-                            }
-                            className="w-20"
+              <TabsContent value="academics">
+                <FormField
+                  control={form.control}
+                  name="academics_score"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Academic Score</FormLabel>
+                      <FormControl>
+                        <div className="space-y-4">
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[field.value]}
+                            onValueChange={([value]) => field.onChange(value)}
                           />
-                          <span className="text-sm text-muted-foreground">
-                            / 100
-                          </span>
+                          <div className="text-sm text-right">
+                            {field.value}%
+                          </div>
                         </div>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="leadership">
+                <FormField
+                  control={form.control}
+                  name="leadership_score"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Leadership Score</FormLabel>
+                      <FormControl>
+                        <div className="space-y-4">
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[field.value]}
+                            onValueChange={([value]) => field.onChange(value)}
+                          />
+                          <div className="text-sm text-right">
+                            {field.value}%
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="physical_fitness">
+                <FormField
+                  control={form.control}
+                  name="physical_fitness_score"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Physical Fitness Score</FormLabel>
+                      <FormControl>
+                        <div className="space-y-4">
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[field.value]}
+                            onValueChange={([value]) => field.onChange(value)}
+                          />
+                          <div className="text-sm text-right">
+                            {field.value}%
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
 
               <FormField
                 control={form.control}
@@ -257,12 +348,6 @@ export function GradeForm({
                     <FormMessage />
                   </FormItem>
                 )}
-              />
-
-              <input
-                type="hidden"
-                {...form.register('category_id')}
-                value={activeTab}
               />
 
               <div className="flex justify-end space-x-2">

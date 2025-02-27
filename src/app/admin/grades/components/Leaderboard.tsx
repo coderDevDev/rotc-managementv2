@@ -8,22 +8,34 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Medal } from 'lucide-react';
-
-interface LeaderboardEntry {
-  id: string;
-  rank: number;
-  full_name: string;
-  student_no: string;
-  overall_score: number;
-  achievements: string[];
-}
+import { Medal, TrendingUp } from 'lucide-react';
+import { TermPerformance } from '@/lib/types/grade';
 
 interface LeaderboardProps {
-  data: LeaderboardEntry[];
+  data: TermPerformance[] | null;
 }
 
 export function Leaderboard({ data }: LeaderboardProps) {
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Performers</CardTitle>
+          <CardDescription>No performance data available</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  // Sort by overall score and add rank
+  const rankedData = data
+    .sort((a, b) => b.overall_score - a.overall_score)
+    .slice(0, 10) // Get top 10
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1
+    }));
+
   return (
     <Card>
       <CardHeader>
@@ -34,30 +46,30 @@ export function Leaderboard({ data }: LeaderboardProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {data.map((entry, index) => (
+          {rankedData.map(entry => (
             <div
-              key={entry.id}
+              key={entry.student_id}
               className="flex items-center justify-between p-4 rounded-lg bg-slate-50">
               <div className="flex items-center gap-4">
                 <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
-                  {index < 3 ? (
+                  {entry.rank <= 3 ? (
                     <Medal
                       className={
-                        index === 0
+                        entry.rank === 1
                           ? 'text-yellow-500'
-                          : index === 1
+                          : entry.rank === 2
                           ? 'text-slate-400'
                           : 'text-amber-600'
                       }
                     />
                   ) : (
                     <span className="text-lg font-semibold text-slate-500">
-                      {index + 1}
+                      {entry.rank}
                     </span>
                   )}
                 </div>
                 <div>
-                  <div className="font-medium">{entry.full_name}</div>
+                  <div className="font-medium">{entry.student_name}</div>
                   <div className="text-sm text-slate-500">
                     {entry.student_no}
                   </div>
@@ -65,13 +77,25 @@ export function Leaderboard({ data }: LeaderboardProps) {
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex gap-2">
-                  {entry.achievements.map((achievement, i) => (
-                    <Badge key={i} variant="secondary">
-                      {achievement}
+                  {Object.entries(entry.grades).map(([category, grade]) => (
+                    <Badge
+                      key={category}
+                      variant={grade.score >= 90 ? 'default' : 'secondary'}
+                      className="capitalize text-white">
+                      {category}: {grade.score.toFixed(1)}%
                     </Badge>
                   ))}
                 </div>
-                <div className="text-lg font-semibold">
+                <div className="flex items-center gap-1 text-lg font-semibold">
+                  <TrendingUp
+                    className={`w-4 h-4 ${
+                      entry.overall_score >= 90
+                        ? 'text-green-500'
+                        : entry.overall_score >= 80
+                        ? 'text-blue-500'
+                        : 'text-gray-500'
+                    } text-xl`}
+                  />
                   {entry.overall_score.toFixed(1)}%
                 </div>
               </div>
