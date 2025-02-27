@@ -357,5 +357,18 @@ export const gradeService = {
     const month = new Date().getMonth() + 1;
     const term = month <= 6 ? '1' : '2';
     return `${year}-${term}`;
+  },
+
+  // Add to existing gradeService
+  async getTerms(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('term_grades')
+      .select('term')
+      .order('term', { ascending: true });
+
+    if (error) throw error;
+
+    // Get unique terms
+    return [...new Set(data.map(g => g.term))];
   }
 };

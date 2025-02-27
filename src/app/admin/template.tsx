@@ -104,20 +104,9 @@ export default function AdminTemplate({
           isSidebarOpen ? 'w-64' : 'w-20'
         )}>
         <div className="flex h-full flex-col border-r border-slate-100">
-          {/* Sidebar Header */}
-          <div className="flex h-16 items-center justify-between px-4">
-            {isSidebarOpen && (
-              <span className="text-xl font-semibold text-slate-900">
-                Admin
-              </span>
-            )}
-            {/* <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-              <FiMenu size={20} />
-            </button> */}
-          </div>
-
+          <span className="p-2 ml-50 text-xl font-semibold text-slate-900 text-center">
+            ROTC Admin
+          </span>
           {/* Sidebar Links */}
           <div className="flex-1 overflow-y-auto p-4">
             <nav className="space-y-2">
