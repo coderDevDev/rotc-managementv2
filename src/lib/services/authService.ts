@@ -112,7 +112,12 @@ export const authService = {
           date_of_birth: metadata.date_of_birth,
           gender: metadata.gender,
           address: metadata.address,
-          email: email
+          email: email,
+          student_no: metadata?.student_no,
+          contact_no: metadata?.contact_no,
+          course: metadata.course,
+          year_level: metadata.year_level,
+          status: metadata.status
         }
       ]);
 

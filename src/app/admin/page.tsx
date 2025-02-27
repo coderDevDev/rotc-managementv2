@@ -62,7 +62,7 @@ export default function AdminPage() {
       <h1 className="text-2xl font-semibold">ROTC Management Dashboard</h1>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(stat => (
+        {/* {stats.map(stat => (
           <div
             key={stat.label}
             className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm transition-all hover:shadow-md">
@@ -92,7 +92,7 @@ export default function AdminPage() {
             </div>
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary/40 to-primary" />
           </div>
-        ))}
+        ))} */}
       </div>
 
       {/* Recent Activity */}

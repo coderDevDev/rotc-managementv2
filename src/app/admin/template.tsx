@@ -18,12 +18,13 @@ import {
 import { FiMenu } from 'react-icons/fi';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
-import { ListOrderedIcon } from 'lucide-react';
+import { Group, ListOrderedIcon } from 'lucide-react';
 import {
   ClipboardCheck as ClipboardCheckIcon,
   Trophy as TrophyIcon,
   Megaphone as MegaphoneIcon,
-  Users as UsersIcon
+  Users as UsersIcon,
+  Building2
 } from 'lucide-react';
 
 const sidebarLinks = [
@@ -45,6 +46,12 @@ const sidebarLinks = [
     description: 'ROTC inquiries and applications'
   },
   {
+    label: 'Battalion',
+    href: '/admin/battalions',
+    icon: Building2,
+    description: 'Battalion information'
+  },
+  {
     label: 'Attendance',
     href: '/admin/attendance',
     icon: ClipboardCheckIcon,
@@ -61,12 +68,6 @@ const sidebarLinks = [
     href: '/admin/announcements',
     icon: MegaphoneIcon,
     description: 'Manage ROTC announcements'
-  },
-  {
-    label: 'Users',
-    href: '/admin/users',
-    icon: UsersIcon,
-    description: 'Manage user accounts'
   }
 ];
 
@@ -139,7 +140,7 @@ export default function AdminTemplate({
 
           {/* User Info and Logout */}
           <div className="border-t border-slate-100 p-4">
-            <div className="flex items-center space-x-3">
+            {/* <div className="flex items-center space-x-3">
               <div className="h-10 w-10 rounded-full bg-primary/10" />
               {isSidebarOpen && (
                 <div className="flex-1">
@@ -149,7 +150,7 @@ export default function AdminTemplate({
                   <p className="text-xs text-slate-500">admin@example.com</p>
                 </div>
               )}
-            </div>
+            </div> */}
             <button
               onClick={handleLogout}
               disabled={isLoading}
