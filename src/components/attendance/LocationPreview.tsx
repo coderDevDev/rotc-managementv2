@@ -28,6 +28,7 @@ interface LocationPreviewProps {
   sessionId: string;
   sessionLocation: { lat: number; lng: number };
   radius: number;
+  onSessionUpdate?: () => void;
 }
 
 // Add these constants at the top
@@ -52,7 +53,8 @@ export function LocationPreview({
   onOpenChange,
   sessionId,
   sessionLocation,
-  radius
+  radius,
+  onSessionUpdate
 }: LocationPreviewProps) {
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{
@@ -356,6 +358,7 @@ export function LocationPreview({
       await attendanceService.submitAttendance(sessionId, userLocation);
       toast.success('Attendance recorded successfully');
       onOpenChange(false);
+      onSessionUpdate?.();
     } catch (error) {
       console.error('Error submitting attendance:', error);
       toast.error('Failed to record attendance');
@@ -470,8 +473,8 @@ export function LocationPreview({
             onClick={handleSubmit}
             disabled={
               loading ||
-              !userLocation ||
-              Boolean(distance && distance > radius) ||
+              // !userLocation ||
+              // Boolean(distance && distance > radius) ||
               hasSubmitted
             }>
             {loading ? (

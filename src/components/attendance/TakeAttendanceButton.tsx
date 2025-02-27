@@ -2,27 +2,32 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { MapPin } from 'lucide-react';
+import { MapPin, UserCheck } from 'lucide-react';
 import { LocationPreview } from './LocationPreview';
 import { attendanceService } from '@/lib/services/attendanceService';
 
 interface TakeAttendanceButtonProps {
   sessionId: string;
-  sessionLocation: { lat: number; lng: number };
+  sessionLocation: {
+    lat: number;
+    lng: number;
+  };
   radius: number;
-  disabled?: boolean;
+  onSuccess?: () => void;
+  onSessionUpdate?: () => void;
 }
 
 export function TakeAttendanceButton({
   sessionId,
   sessionLocation,
   radius,
-  disabled
+  onSuccess,
+  onSessionUpdate
 }: TakeAttendanceButtonProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
-  // Check attendance status when component mounts
+  // Check if user has already submitted attendance
   useEffect(() => {
     const checkAttendance = async () => {
       try {
@@ -38,10 +43,10 @@ export function TakeAttendanceButton({
   return (
     <>
       <Button
+        className="w-full"
         onClick={() => setShowPreview(true)}
-        disabled={disabled || hasSubmitted}
-        variant="outline">
-        <MapPin className="w-4 h-4 mr-2" />
+        disabled={hasSubmitted}>
+        <MapPin className="mr-2 h-4 w-4" />
         {hasSubmitted ? 'Attendance Submitted' : 'Take Attendance'}
       </Button>
 
@@ -51,6 +56,12 @@ export function TakeAttendanceButton({
         sessionId={sessionId}
         sessionLocation={sessionLocation}
         radius={radius}
+        onSuccess={() => {
+          setHasSubmitted(true);
+          onSuccess?.();
+          onSessionUpdate?.();
+        }}
+        onSessionUpdate={onSessionUpdate}
       />
     </>
   );

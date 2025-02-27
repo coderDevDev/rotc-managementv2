@@ -23,9 +23,19 @@ import {
 } from '@/lib/services/attendanceService';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { CountdownTimer } from '@/components/attendance/CountdownTimer';
 import { TakeAttendanceButton } from '@/components/attendance/TakeAttendanceButton';
 import { SessionManagement } from '@/components/attendance/SessionManagement';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 export default function AttendancePage() {
   const [isSettingAttendance, setIsSettingAttendance] = useState(false);
@@ -36,10 +46,44 @@ export default function AttendancePage() {
     AttendanceRecord[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [allSessions, setAllSessions] = useState<AttendanceSession[]>([]);
+  const [attendanceHistory, setAttendanceHistory] = useState<
+    AttendanceRecord[]
+  >([]);
 
-  // Fetch active session and records
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+
+  // Fetch user role and session
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+        if (!session) {
+          router.push('/login');
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        setUserRole(profile?.role);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        toast.error('Failed to load user data');
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
+  // Fetch attendance data
   const fetchAttendanceData = async () => {
     try {
       setLoading(true);
@@ -47,19 +91,37 @@ export default function AttendancePage() {
       setActiveSession(session);
 
       if (session) {
-        const records = await attendanceService.getSessionRecords(session.id);
-        setAttendanceRecords(records);
+        if (userRole === 'rotc_coordinator') {
+          const records = await attendanceService.getSessionRecords(session.id);
+          setAttendanceRecords(records);
+        } else {
+          // For cadets, fetch their own record for active session
+          const record = await attendanceService.getUserSessionRecord(
+            session.id
+          );
+          if (record) {
+            setAttendanceRecords([record]);
+          }
+        }
+      }
+
+      // Fetch attendance history for cadets
+      if (userRole !== 'rotc_coordinator') {
+        const history = await attendanceService.getUserAttendanceHistory();
+        setAttendanceHistory(history);
       }
     } catch (error) {
-      console.error('Error fetching attendance data:', error);
-      toast.error('Failed to load attendance data');
+      // console.error('Error fetching attendance data:', error);
+      // toast.error('Failed to load attendance data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch all sessions
+  // Fetch all sessions for coordinators
   const fetchAllSessions = async () => {
+    if (userRole !== 'rotc_coordinator') return;
+
     try {
       const sessions = await attendanceService.getAllSessions();
       setAllSessions(sessions);
@@ -79,11 +141,7 @@ export default function AttendancePage() {
       .channel('attendance_records')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'attendance_records'
-        },
+        { event: 'INSERT', schema: 'public', table: 'attendance_records' },
         payload => {
           setAttendanceRecords(prev => [
             payload.new as AttendanceRecord,
@@ -98,11 +156,7 @@ export default function AttendancePage() {
       .channel('attendance_sessions')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'attendance_sessions'
-        },
+        { event: '*', schema: 'public', table: 'attendance_sessions' },
         () => {
           fetchAttendanceData();
         }
@@ -113,7 +167,9 @@ export default function AttendancePage() {
       recordsSubscription.unsubscribe();
       sessionSubscription.unsubscribe();
     };
-  }, []);
+  }, [userRole]);
+
+  const isCoordinator = userRole === 'rotc_coordinator';
 
   // Calculate stats
   const stats = {
@@ -153,120 +209,202 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">Attendance Management</h1>
+          <h1 className="text-2xl font-semibold">
+            {isCoordinator ? 'Attendance Management' : 'My Attendance'}
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Set location and track ROTC attendance
+            {isCoordinator
+              ? 'Monitor and manage ROTC attendance'
+              : 'Track your attendance status'}
           </p>
         </div>
-        <div className="flex gap-2">
-          {(activeSession?.status === 'active' ||
-            activeSession?.status === 'scheduled') && (
-            <TakeAttendanceButton
-              sessionId={activeSession.id}
-              sessionLocation={activeSession.location}
-              radius={activeSession.radius}
-            />
-          )}
+        {isCoordinator && (
           <Button onClick={() => setIsSettingAttendance(true)}>
             <MapPin className="w-4 h-4 mr-2" />
             Set Attendance Location
           </Button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cadets</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Cadets in attendance session
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Present</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {stats.present}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((stats.present / stats.total) * 100 || 0).toFixed(1)}%
-              attendance rate
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Late</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {stats.late}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((stats.late / stats.total) * 100 || 0).toFixed(1)}% arrived late
-            </p>
-          </CardContent>
-        </Card>
-
-        {activeSession?.status !== 'completed' ? (
-          <CountdownTimer
-            startTime={activeSession?.start_time || ''}
-            endTime={activeSession?.end_time || ''}
-            onComplete={handleTimerComplete}
-          />
-        ) : (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Absent</CardTitle>
-              <UserX className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {stats.absent}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {((stats.absent / stats.total) * 100 || 0).toFixed(1)}% missed
-                attendance
-              </p>
-            </CardContent>
-          </Card>
         )}
       </div>
 
-      {/* Map and Attendance List */}
+      {/* Stats Cards - show different stats for cadets */}
+      {!isCoordinator && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Sessions
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {attendanceHistory.length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Attendance Rate
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {(
+                  (attendanceHistory.filter(r => r.status === 'present')
+                    .length /
+                    Math.max(attendanceHistory.length, 1)) *
+                  100
+                ).toFixed(1)}
+                %
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Late Arrivals
+              </CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">
+                {attendanceHistory.filter(r => r.status === 'late').length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Main Content */}
       <div className="grid gap-6 md:grid-cols-2">
         <AttendanceMap session={activeSession} />
-        <AttendanceList records={attendanceRecords} loading={loading} />
+        {isCoordinator ? (
+          <AttendanceList records={attendanceRecords} loading={loading} />
+        ) : (
+          <div className="space-y-6">
+            {/* Active Session Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Session</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activeSession ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Session ends in:
+                      </div>
+                      <CountdownTimer
+                        startTime={activeSession.start_time}
+                        endTime={activeSession.end_time}
+                        onComplete={handleTimerComplete}
+                      />
+                    </div>
+                    <TakeAttendanceButton
+                      sessionId={activeSession.id}
+                      sessionLocation={activeSession.location}
+                      radius={activeSession.radius}
+                      onSuccess={fetchAttendanceData}
+                      onSessionUpdate={fetchAttendanceData}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    No active attendance session
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Attendance History Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>My Attendance History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Distance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center">
+                            Loading...
+                          </TableCell>
+                        </TableRow>
+                      ) : attendanceHistory.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center">
+                            No attendance records found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        attendanceHistory.map(record => (
+                          <TableRow key={record.id}>
+                            <TableCell>
+                              {new Date(record.timestamp).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(record.timestamp).toLocaleTimeString()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  record.status === 'present'
+                                    ? 'success'
+                                    : record.status === 'late'
+                                    ? 'warning'
+                                    : 'destructive'
+                                }>
+                                {record.status.toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {Math.round(record.distance)}m
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
-      <SetAttendanceDialog
-        open={isSettingAttendance}
-        onOpenChange={setIsSettingAttendance}
-        onSuccess={fetchAttendanceData}
-      />
-
-      {/* Add Session Management */}
-      <SessionManagement
-        sessions={allSessions}
-        onSessionUpdate={() => {
-          fetchAttendanceData();
-          fetchAllSessions();
-        }}
-      />
+      {/* Coordinator-only components */}
+      {isCoordinator && (
+        <>
+          <SetAttendanceDialog
+            open={isSettingAttendance}
+            onOpenChange={setIsSettingAttendance}
+            onSuccess={fetchAttendanceData}
+          />
+          <SessionManagement
+            sessions={allSessions}
+            onSessionUpdate={() => {
+              fetchAttendanceData();
+              fetchAllSessions();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

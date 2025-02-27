@@ -317,27 +317,22 @@ export const attendanceService = {
     return session;
   },
 
-  // Add to attendanceService
-  async checkAttendanceExists(
-    sessionId: string,
-    profileId?: string
-  ): Promise<boolean> {
+  // Check if user has already submitted attendance for a session
+  async checkAttendanceExists(sessionId: string) {
     const {
-      data: { user },
-      error: userError
+      data: { user }
     } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error('No authenticated user');
 
-    const { data: record, error } = await supabase
+    const { data, error } = await supabase
       .from('attendance_records')
       .select('id')
       .eq('session_id', sessionId)
-      .eq('profile_id', profileId || user.id)
+      .eq('profile_id', user.id)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return !!record;
+    return !!data;
   },
 
   // Add to attendanceService
@@ -414,5 +409,75 @@ export const attendanceService = {
 
     if (error) throw error;
     return sessions;
+  },
+
+  // Get user's record for a specific session
+  async getUserSessionRecord(sessionId: string) {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    const { data: record, error } = await supabase
+      .from('attendance_records')
+      .select('*, profile:profiles(*)')
+      .eq('session_id', sessionId)
+      .eq('profile_id', user.id)
+      .single();
+
+    if (error) throw error;
+    return record;
+  },
+
+  // Get user's attendance history
+  async getUserAttendanceHistory() {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    const { data: records, error } = await supabase
+      .from('attendance_records')
+      .select('*, session:attendance_sessions(*)')
+      .eq('profile_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return records;
+  },
+
+  async takeAttendance(
+    sessionId: string,
+    location: { lat: number; lng: number }
+  ) {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('No authenticated user');
+
+    const session = await this.getActiveSession();
+    if (!session) throw new Error('No active session');
+
+    const distance = calculateDistance(
+      location.lat,
+      location.lng,
+      session.location.lat,
+      session.location.lng
+    );
+
+    const status = distance <= session.radius ? 'present' : 'absent';
+
+    const { error } = await supabase.from('attendance_records').insert([
+      {
+        session_id: sessionId,
+        profile_id: user.id,
+        location,
+        distance,
+        status,
+        timestamp: new Date().toISOString()
+      }
+    ]);
+
+    if (error) throw error;
   }
 };
