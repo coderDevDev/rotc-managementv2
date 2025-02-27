@@ -1,15 +1,15 @@
-import { Button } from "@/components/ui/button";
-import React from "react";
+import { Button } from '@/components/ui/button';
+import React from 'react';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import ReviewCard from "@/components/common/ReviewCard";
-import { reviewsData } from "@/app/page";
-import Link from "next/link";
+  SelectValue
+} from '@/components/ui/select';
+import ReviewCard from '@/components/common/ReviewCard';
+// import { reviewsData } from "@/app/page";
+import Link from 'next/link';
 
 const ReviewsContent = () => {
   return (
@@ -35,25 +35,23 @@ const ReviewsContent = () => {
 
           <Button
             type="button"
-            className="sm:min-w-[166px] px-4 py-3 sm:px-5 sm:py-4 rounded-full bg-black font-medium text-xs sm:text-base h-12"
-          >
+            className="sm:min-w-[166px] px-4 py-3 sm:px-5 sm:py-4 rounded-full bg-black font-medium text-xs sm:text-base h-12">
             Write a Review
           </Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5 sm:mb-9">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5 sm:mb-9">
         {reviewsData.map((review) => (
           <ReviewCard key={review.id} data={review} isAction isDate />
         ))}
-      </div>
-      <div className="w-full px-4 sm:px-0 text-center">
+      </div> */}
+      {/* <div className="w-full px-4 sm:px-0 text-center">
         <Link
           href="#"
-          className="inline-block w-[230px] px-11 py-4 border rounded-full hover:bg-black hover:text-white text-black transition-all font-medium text-sm sm:text-base border-black/10"
-        >
+          className="inline-block w-[230px] px-11 py-4 border rounded-full hover:bg-black hover:text-white text-black transition-all font-medium text-sm sm:text-base border-black/10">
           Load More Reviews
         </Link>
-      </div>
+      </div> */}
     </section>
   );
 };

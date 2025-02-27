@@ -58,8 +58,8 @@ const sidebarLinks = [
     description: 'Training attendance records'
   },
   {
-    label: 'Performance',
-    href: '/admin/performance',
+    label: 'Grades and Rankings',
+    href: '/admin/grades',
     icon: TrophyIcon,
     description: 'Cadet evaluations and rankings'
   },
