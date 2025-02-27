@@ -164,8 +164,8 @@ export default function AdminTemplate({
           isSidebarOpen ? 'w-64' : 'w-20'
         )}>
         <div className="flex h-full flex-col border-r border-slate-100">
-          <span className="p-2 ml-50 text-xl font-semibold text-slate-900 text-center">
-            ROTC Admin
+          <span className="p-2 ml-50 text-2xl font-semibold text-slate-900 text-center text-olive">
+            rotcHUB
           </span>
           {/* Sidebar Links */}
           <div className="flex-1 overflow-y-auto p-4">
