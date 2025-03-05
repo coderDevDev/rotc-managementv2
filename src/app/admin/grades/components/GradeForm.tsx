@@ -34,6 +34,9 @@ import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import { GradeEntry, GradeCategory } from '@/lib/types/grade';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 const supabase = createClientComponentClient();
 
@@ -133,7 +136,6 @@ export function GradeForm({
       const term = defaultTerm || (await gradeService.getCurrentTerm());
 
       if (grade) {
-        // Update existing grades
         await gradeService.updateGrades(grade.id, {
           academics: {
             score: data.academics_score,
@@ -152,7 +154,6 @@ export function GradeForm({
         });
         toast.success('Grades updated successfully');
       } else {
-        // Create new grade entries
         const gradeEntries = [
           {
             user_id: data.user_id,
@@ -197,11 +198,13 @@ export function GradeForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{grade ? 'Edit' : 'Add'} Grade</DialogTitle>
+          <DialogTitle>
+            {grade ? 'Edit Grade Entry' : 'Add Grade Entry'}
+          </DialogTitle>
         </DialogHeader>
-        <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
+        <Tabs defaultValue="academics">
           <TabsList className="grid w-full grid-cols-3 bg-primary text-white">
             <TabsTrigger value="academics">Academics</TabsTrigger>
             <TabsTrigger value="leadership">Leadership</TabsTrigger>
@@ -209,9 +212,7 @@ export function GradeForm({
           </TabsList>
 
           <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-4 mt-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="user_id"
@@ -252,81 +253,177 @@ export function GradeForm({
                 )}
               />
 
-              <TabsContent value="academics">
+              <TabsContent value="academics" className="space-y-4">
                 <FormField
                   control={form.control}
                   name="academics_score"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Academic Score</FormLabel>
-                      <FormControl>
-                        <div className="space-y-4">
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[field.value]}
-                            onValueChange={([value]) => field.onChange(value)}
-                          />
-                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
+                      <FormLabel>Academic Score (%)</FormLabel>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4">
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              {...field}
+                              onChange={e => {
+                                const value = Math.min(
+                                  100,
+                                  Math.max(0, Number(e.target.value))
+                                );
+                                field.onChange(value);
+                              }}
+                              className="w-24"
+                            />
+                          </FormControl>
+                          <span className="text-sm text-gray-500">
                             {field.value}%
-                          </div>
+                          </span>
                         </div>
-                      </FormControl>
+                        <Progress
+                          value={field.value}
+                          className={cn(
+                            'h-2',
+                            field.value >= 90
+                              ? 'bg-green-100'
+                              : field.value >= 75
+                              ? 'bg-blue-100'
+                              : 'bg-red-100'
+                          )}
+                          indicatorClassName={cn(
+                            field.value >= 90
+                              ? 'bg-green-500'
+                              : field.value >= 75
+                              ? 'bg-blue-500'
+                              : 'bg-red-500'
+                          )}
+                        />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Failing</span>
+                          <span>Passing</span>
+                          <span>Excellent</span>
+                        </div>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </TabsContent>
 
-              <TabsContent value="leadership">
+              <TabsContent value="leadership" className="space-y-4">
                 <FormField
                   control={form.control}
                   name="leadership_score"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Leadership Score</FormLabel>
-                      <FormControl>
-                        <div className="space-y-4">
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[field.value]}
-                            onValueChange={([value]) => field.onChange(value)}
-                          />
-                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
+                      <FormLabel>Leadership Score (%)</FormLabel>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4">
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              {...field}
+                              onChange={e => {
+                                const value = Math.min(
+                                  100,
+                                  Math.max(0, Number(e.target.value))
+                                );
+                                field.onChange(value);
+                              }}
+                              className="w-24"
+                            />
+                          </FormControl>
+                          <span className="text-sm text-gray-500">
                             {field.value}%
-                          </div>
+                          </span>
                         </div>
-                      </FormControl>
+                        <Progress
+                          value={field.value}
+                          className={cn(
+                            'h-2',
+                            field.value >= 90
+                              ? 'bg-green-100'
+                              : field.value >= 75
+                              ? 'bg-blue-100'
+                              : 'bg-red-100'
+                          )}
+                          indicatorClassName={cn(
+                            field.value >= 90
+                              ? 'bg-green-500'
+                              : field.value >= 75
+                              ? 'bg-blue-500'
+                              : 'bg-red-500'
+                          )}
+                        />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Failing</span>
+                          <span>Passing</span>
+                          <span>Excellent</span>
+                        </div>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </TabsContent>
 
-              <TabsContent value="physical_fitness">
+              <TabsContent value="physical_fitness" className="space-y-4">
                 <FormField
                   control={form.control}
                   name="physical_fitness_score"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Physical Fitness Score</FormLabel>
-                      <FormControl>
-                        <div className="space-y-4">
-                          <Slider
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={[field.value]}
-                            onValueChange={([value]) => field.onChange(value)}
-                          />
-                          <div className="text-sm text-center text-gray-500 font-bold 2xl:text-2xl">
+                      <FormLabel>Physical Fitness Score (%)</FormLabel>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4">
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              {...field}
+                              onChange={e => {
+                                const value = Math.min(
+                                  100,
+                                  Math.max(0, Number(e.target.value))
+                                );
+                                field.onChange(value);
+                              }}
+                              className="w-24"
+                            />
+                          </FormControl>
+                          <span className="text-sm text-gray-500">
                             {field.value}%
-                          </div>
+                          </span>
                         </div>
-                      </FormControl>
+                        <Progress
+                          value={field.value}
+                          className={cn(
+                            'h-2',
+                            field.value >= 90
+                              ? 'bg-green-100'
+                              : field.value >= 75
+                              ? 'bg-blue-100'
+                              : 'bg-red-100'
+                          )}
+                          indicatorClassName={cn(
+                            field.value >= 90
+                              ? 'bg-green-500'
+                              : field.value >= 75
+                              ? 'bg-blue-500'
+                              : 'bg-red-500'
+                          )}
+                        />
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Failing</span>
+                          <span>Passing</span>
+                          <span>Excellent</span>
+                        </div>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -350,7 +447,7 @@ export function GradeForm({
                 )}
               />
 
-              <div className="flex justify-end space-x-2">
+              <div className="flex justify-end gap-4">
                 <Button
                   type="button"
                   variant="outline"
@@ -358,7 +455,14 @@ export function GradeForm({
                   Cancel
                 </Button>
                 <Button type="submit" disabled={loading}>
-                  {grade ? 'Update' : 'Add'} Grade
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>Save</>
+                  )}
                 </Button>
               </div>
             </form>

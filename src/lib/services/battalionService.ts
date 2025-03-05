@@ -218,5 +218,46 @@ export const battalionService = {
       .eq('user_id', userId);
 
     if (error) throw error;
+  },
+
+  async getOfficerBattalion(officerId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('battalions')
+        .select(
+          `
+          id,
+          name,
+          location,
+          status,
+          description,
+          commander_id,
+          commander:profiles!battalions_commander_id_fkey (
+            id,
+            full_name,
+            student_no
+          ),
+          members:battalion_members (
+            id,
+            user_id,
+            role,
+            rank,
+            profiles (
+              id,
+              full_name,
+              student_no
+            )
+          )
+        `
+        )
+        .eq('commander_id', officerId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching officer battalion:', error);
+      throw error;
+    }
   }
 };

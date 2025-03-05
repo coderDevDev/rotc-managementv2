@@ -360,12 +360,12 @@ export default function AnnouncementsPage() {
                           {announcement.title}
                         </h3>
                         <div className="flex gap-2">
-                          {getPriorityBadge(announcement.priority)}
+                          {/* {getPriorityBadge(announcement.priority)}
                           <Badge variant="outline" className="bg-primary/5">
                             {new Date(
                               announcement.created_at
                             ).toLocaleDateString()}
-                          </Badge>
+                          </Badge> */}
                         </div>
                       </div>
                       <p className="text-muted-foreground leading-relaxed">

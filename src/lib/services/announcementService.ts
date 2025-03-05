@@ -7,14 +7,22 @@ export interface Announcement {
   title: string;
   content: string;
   type: 'Training' | 'Event' | 'Notice';
-  priority: 'High' | 'Medium' | 'Low';
-  audience: string;
+  priority: 'High';
+  audience: 'everyone';
   status: 'draft' | 'published';
   publish_date: string;
   created_by: string;
   created_at: string;
   updated_at: string;
 }
+
+type CreateAnnouncementData = Omit<
+  Announcement,
+  'id' | 'created_by' | 'created_at' | 'updated_at' | 'priority' | 'audience'
+> & {
+  priority: 'High';
+  audience: 'everyone';
+};
 
 export const announcementService = {
   async createAnnouncement(

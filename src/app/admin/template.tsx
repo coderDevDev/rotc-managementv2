@@ -33,23 +33,19 @@ const adminLinks = [
     href: '/admin',
     icon: RiDashboardLine
   },
-  {
-    label: 'Students',
-    href: '/admin/students',
-    icon: RiUser3Line,
-    description: 'Enrolled ROTC cadets'
-  },
+
   {
     label: 'Enrollment',
     href: '/admin/enrollment',
     icon: MdOutlineAssignment,
     description: 'ROTC inquiries and applications'
   },
+
   {
-    label: 'Battalion',
-    href: '/admin/battalions',
-    icon: Building2,
-    description: 'Battalion information'
+    label: 'Students',
+    href: '/admin/students',
+    icon: RiUser3Line,
+    description: 'Enrolled ROTC cadets'
   },
   {
     label: 'Attendance',
@@ -58,19 +54,69 @@ const adminLinks = [
     description: 'Training attendance records'
   },
   {
-    label: 'Grades and Rankings',
+    label: 'Announcements',
+    href: '/admin/announcements',
+    icon: MegaphoneIcon,
+    description: 'Manage ROTC announcements'
+  },
+  {
+    label: 'Grades',
     href: '/admin/grades',
     icon: TrophyIcon,
     description: 'Cadet evaluations and rankings'
+  },
+  {
+    label: 'Battalion',
+    href: '/admin/battalions',
+    icon: Building2,
+    description: 'Battalion information'
+  }
+];
+
+// Dashboard
+// ANNOUNCEMENT
+// Students
+// Attendance
+// Grade
+// Battalion
+
+const rotcOfficerLinks = [
+  {
+    label: 'Dashboard',
+    href: '/admin',
+    icon: RiDashboardLine
   },
   {
     label: 'Announcements',
     href: '/admin/announcements',
     icon: MegaphoneIcon,
     description: 'Manage ROTC announcements'
+  },
+  {
+    label: 'Students',
+    href: '/admin/students',
+    icon: RiUser3Line,
+    description: 'Enrolled ROTC cadets'
+  },
+  {
+    label: 'Attendance',
+    href: '/admin/attendance',
+    icon: ClipboardCheckIcon,
+    description: 'Training attendance records'
+  },
+  {
+    label: 'Grades',
+    href: '/admin/grades',
+    icon: TrophyIcon,
+    description: 'Cadet evaluations and rankings'
+  },
+  {
+    label: 'Battalion',
+    href: '/admin/battalions',
+    icon: Building2,
+    description: 'Battalion information'
   }
 ];
-
 const cadetLinks = [
   {
     label: 'Dashboard',
@@ -159,7 +205,12 @@ export default function AdminTemplate({
     }
   };
 
-  const links = role === 'rotc_coordinator' ? adminLinks : cadetLinks;
+  const links =
+    role === 'rotc_officer'
+      ? rotcOfficerLinks
+      : role === 'cadet'
+      ? cadetLinks
+      : adminLinks;
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}

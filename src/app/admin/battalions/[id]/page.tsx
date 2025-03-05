@@ -24,10 +24,13 @@ import { MemberForm } from '../components/MemberForm';
 import { BattalionForm } from '../components/BattalionForm';
 import { DeleteMemberDialog } from '../components/DeleteMemberDialog';
 import { BulkImportDialog } from '../components/BulkImportDialog';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function BattalionDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const supabase = createClientComponentClient();
+  const [profile, setProfile] = useState(null);
   const [battalion, setBattalion] = useState<Battalion | null>(null);
   const [members, setMembers] = useState<BattalionMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +39,30 @@ export default function BattalionDetailPage() {
   const [selectedMember, setSelectedMember] = useState<BattalionMember>();
   const [deleteUserId, setDeleteUserId] = useState<string>();
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+
+  useEffect(() => {
+    const getProfile = async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(profileData);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+
+    getProfile();
+  }, [supabase]);
 
   const fetchBattalionData = async () => {
     if (params.id === 'new') {
@@ -49,6 +76,17 @@ export default function BattalionDetailPage() {
         battalionService.getBattalion(params.id as string),
         battalionService.getBattalionMembers(params.id as string)
       ]);
+
+      // If user is ROTC officer and not assigned to this battalion, redirect
+      if (
+        profile?.role === 'rotc_officer' &&
+        battalionData.commander_id !== profile.id
+      ) {
+        toast.error('You do not have access to this battalion');
+        router.push('/admin/battalions');
+        return;
+      }
+
       setBattalion(battalionData);
       setMembers(membersData);
     } catch (error) {
@@ -136,10 +174,13 @@ export default function BattalionDetailPage() {
             <UserPlus className="w-4 h-4 mr-2" />
             Add Member
           </Button>
-          <Button onClick={() => setFormOpen(true)}>
-            <Edit className="w-4 h-4 mr-2" />
-            Edit Battalion
-          </Button>
+
+          {profile?.role === 'rotc_coordinator' && (
+            <Button onClick={() => setFormOpen(true)}>
+              <Edit className="w-4 h-4 mr-2" />
+              Edit Battalion
+            </Button>
+          )}
         </div>
       </div>
 
@@ -165,7 +206,7 @@ export default function BattalionDetailPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">
-                Commander
+                ROTC Officer
               </label>
               <p className="text-sm">
                 {battalion.commander?.full_name || 'Not assigned'}

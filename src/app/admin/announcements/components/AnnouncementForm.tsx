@@ -35,17 +35,15 @@ import {
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 
-const schema = z.object({
+const formSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   content: z.string().min(1, 'Content is required'),
   type: z.enum(['Training', 'Event', 'Notice']),
-  priority: z.enum(['High', 'Medium', 'Low']),
-  audience: z.string().min(1, 'Audience is required'),
   status: z.enum(['draft', 'published']),
-  publish_date: z.string().min(1, 'Publish date is required')
+  publish_date: z.string()
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.infer<typeof formSchema>;
 
 interface AnnouncementFormProps {
   open: boolean;
@@ -60,13 +58,15 @@ export function AnnouncementForm({
   announcement,
   onSuccess
 }: AnnouncementFormProps) {
-  const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
-      status: 'draft',
-      type: 'Notice',
-      priority: 'Medium',
-      publish_date: new Date().toISOString().slice(0, 16)
+      title: announcement?.title || '',
+      content: announcement?.content || '',
+      type: announcement?.type || 'Notice',
+      status: announcement?.status || 'draft',
+      publish_date:
+        announcement?.publish_date || new Date().toISOString().split('T')[0]
     }
   });
 
@@ -82,8 +82,6 @@ export function AnnouncementForm({
         title: announcement.title,
         content: announcement.content,
         type: announcement.type,
-        priority: announcement.priority,
-        audience: announcement.audience,
         status: announcement.status,
         publish_date: formattedDate
       });
@@ -92,25 +90,31 @@ export function AnnouncementForm({
         title: '',
         content: '',
         type: 'Notice',
-        priority: 'Medium',
-        audience: '',
         status: 'draft',
-        publish_date: new Date().toISOString().slice(0, 16)
+        publish_date: new Date().toISOString().split('T')[0]
       });
     }
   }, [announcement, form]);
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
       if (announcement) {
-        await announcementService.updateAnnouncement(announcement.id, data);
+        await announcementService.updateAnnouncement(announcement.id, {
+          ...data,
+          priority: 'High',
+          audience: 'everyone'
+        });
         toast.success('Announcement updated successfully');
       } else {
-        await announcementService.createAnnouncement(data);
+        await announcementService.createAnnouncement({
+          ...data,
+          priority: 'High',
+          audience: 'everyone'
+        });
         toast.success('Announcement created successfully');
       }
-      onOpenChange(false);
       onSuccess();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error saving announcement:', error);
       toast.error('Failed to save announcement');
@@ -134,7 +138,10 @@ export function AnnouncementForm({
                 <FormItem>
                   <FormLabel>Title</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      {...field}
+                      placeholder="Enter a clear and concise title"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,7 +155,17 @@ export function AnnouncementForm({
                 <FormItem>
                   <FormLabel>Content</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea
+                      {...field}
+                      className="min-h-[200px]"
+                      placeholder={`Describe the announcement details:
+
+What: What is happening or what needs to be done?
+Where: Location or venue of the event/activity
+When: Date, time, and duration
+Who: Who needs to attend or who is this for?
+Additional Information: Any other important details`}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -180,46 +197,7 @@ export function AnnouncementForm({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name="priority"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Priority</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select priority" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
-
-            <FormField
-              control={form.control}
-              name="audience"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Audience</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <FormField
               control={form.control}

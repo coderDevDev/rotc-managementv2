@@ -1,20 +1,32 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
-import { Edit } from 'lucide-react';
+import { Edit, MoreHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 
 export const columns: ColumnDef<any>[] = [
   {
     accessorKey: 'student_name',
-    header: 'Student',
-    cell: ({ row }) => (
-      <div>
-        <div className="font-medium">{row.original.student_name}</div>
-        <div className="text-sm text-muted-foreground">
-          {row.original.student_no}
-        </div>
-      </div>
-    )
+    header: 'Student Name'
+  },
+  {
+    accessorKey: 'student_no',
+    header: 'Student No.'
+  },
+  {
+    accessorKey: 'course',
+    header: 'Course',
+    cell: ({ row }) => row.original.course || 'N/A'
+  },
+  {
+    accessorKey: 'battalion',
+    header: 'Battalion',
+    cell: ({ row }) => row.original.battalion?.name || 'Not Assigned'
   },
   {
     accessorKey: 'grades.academics.score',

@@ -33,10 +33,18 @@ import {
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
 import { studentService, type Student } from '@/lib/services/studentService';
+import { Label } from '@/components/ui/label';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const schema = z.object({
   user_id: z.string().min(1, 'Member is required'),
-  role: z.enum(['commander', 'platoon_leader', 'squad_leader', 'cadet']),
+  role: z.enum([
+    'cadet',
+    'squad_leader',
+    'platoon_leader',
+    'commander',
+    'rotc_officer'
+  ]),
   rank: z.string().min(1, 'Rank is required')
 });
 
@@ -61,6 +69,14 @@ const RANKS = [
   'Cadet Captain'
 ];
 
+const roleOptions = [
+  // { label: 'ROTC Officer', value: 'rotc_officer' },
+  // { label: 'Commander', value: 'commander' },
+  { label: 'Cadet', value: 'cadet' }
+  // { label: 'Squad Leader', value: 'squad_leader' },
+  // { label: 'Platoon Leader', value: 'platoon_leader' }
+];
+
 export function MemberForm({
   open,
   onOpenChange,
@@ -68,6 +84,7 @@ export function MemberForm({
   member,
   onSuccess
 }: MemberFormProps) {
+  const supabase = createClientComponentClient();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
@@ -136,6 +153,17 @@ export function MemberForm({
     try {
       if (member) {
         await battalionService.updateMember(battalionId, member.user_id, data);
+
+        // Update profile role if role is rotc_officer
+        if (data.role === 'rotc_officer') {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ role: 'rotc_officer' })
+            .eq('id', member.user_id);
+
+          if (profileError) throw profileError;
+        }
+
         toast.success('Member updated successfully');
       } else {
         try {
@@ -145,22 +173,30 @@ export function MemberForm({
             role: data.role,
             rank: data.rank
           });
+
+          // Update profile role if role is rotc_officer
+          if (data.role === 'rotc_officer') {
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update({ role: 'rotc_officer' })
+              .eq('id', data.user_id);
+
+            if (profileError) throw profileError;
+          }
+
           toast.success('Member added successfully');
         } catch (error) {
-          if (
-            error instanceof Error &&
-            error.message === 'User is already assigned to a battalion'
-          ) {
-            toast.error('This cadet is already assigned to a battalion');
-            return;
-          }
-          throw error;
+          console.error('Error adding member:', error);
+          toast.error('Failed to add member');
+          return;
         }
       }
+
+      form.reset();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error saving member:', error);
+      console.error('Error submitting form:', error);
       toast.error('Failed to save member');
     }
   };
@@ -215,33 +251,28 @@ export function MemberForm({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="commander">Commander</SelectItem>
-                      <SelectItem value="platoon_leader">
-                        Platoon Leader
-                      </SelectItem>
-                      <SelectItem value="squad_leader">Squad Leader</SelectItem>
-                      <SelectItem value="cadet">Cadet</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                onValueChange={value => form.setValue('role', value)}
+                defaultValue={form.watch('role')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.formState.errors.role && (
+                <span className="text-sm text-red-500">
+                  {form.formState.errors.role.message}
+                </span>
               )}
-            />
+            </div>
 
             <FormField
               control={form.control}

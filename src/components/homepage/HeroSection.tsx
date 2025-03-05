@@ -10,7 +10,7 @@ export default function HeroSection() {
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <Image
-          src="/images/hero.png"
+          src="/images/HERO.jpg"
           alt="ROTC Cadets in Action"
           fill
           className="object-cover"

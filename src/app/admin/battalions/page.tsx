@@ -18,28 +18,63 @@ import {
 } from '@/lib/services/battalionService';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function BattalionsPage() {
+  const supabase = createClientComponentClient();
+  const [profile, setProfile] = useState(null);
   const [battalions, setBattalions] = useState<Battalion[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fetchBattalions = async () => {
-    try {
-      setLoading(true);
-      const data = await battalionService.getBattalions();
-      setBattalions(data);
-    } catch (error) {
-      console.error('Error fetching battalions:', error);
-      toast.error('Failed to load battalions');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const getProfile = async () => {
+      try {
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) throw error;
+        setProfile(profileData);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+
+    getProfile();
+  }, [supabase]);
 
   useEffect(() => {
-    fetchBattalions();
-  }, []);
+    const fetchBattalions = async () => {
+      try {
+        if (profile?.role === 'rotc_officer') {
+          // If ROTC officer, only fetch their assigned battalion
+          const data = await battalionService.getOfficerBattalion(profile.id);
+          setBattalions(Array.isArray(data) ? data : [data].filter(Boolean));
+        } else {
+          // For coordinator and other roles, fetch all battalions
+          const data = await battalionService.getBattalions();
+          setBattalions(data);
+        }
+      } catch (error) {
+        console.error('Error fetching battalions:', error);
+        toast.error('Failed to load battalions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (profile) {
+      fetchBattalions();
+    }
+  }, [profile]);
 
   const filteredBattalions = battalions.filter(battalion =>
     battalion.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -55,12 +90,15 @@ export default function BattalionsPage() {
             Manage ROTC battalions and their personnel
           </p>
         </div>
-        <Link href="/admin/battalions/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Battalion
-          </Button>
-        </Link>
+
+        {profile?.role === 'rotc_coordinator' && (
+          <Link href="/admin/battalions/new">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Battalion
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Stats Overview */}

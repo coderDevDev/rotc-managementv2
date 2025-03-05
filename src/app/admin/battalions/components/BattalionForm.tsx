@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
 import { studentService } from '@/lib/services/studentService';
 import { type Student } from '@/lib/types/student';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const schema = z.object({
   name: z.string().min(1, 'Battalion name is required'),
@@ -61,6 +62,7 @@ export function BattalionForm({
   battalion,
   onSuccess
 }: BattalionFormProps) {
+  const supabase = createClientComponentClient();
   const [commanders, setCommanders] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -116,25 +118,48 @@ export function BattalionForm({
 
   const onSubmit = async (data: FormData) => {
     try {
+      setLoading(true);
+
+      // If there's an existing battalion and commander is being changed
+      if (battalion && battalion.commander_id !== data.commander_id) {
+        // Reset old commander's role if exists
+        if (battalion.commander_id) {
+          const { error: oldCommanderError } = await supabase
+            .from('profiles')
+            .update({ role: 'cadet' })
+            .eq('id', battalion.commander_id);
+
+          if (oldCommanderError) throw oldCommanderError;
+        }
+      }
+
+      // Update new commander's role if selected
+      if (data.commander_id) {
+        const { error: newCommanderError } = await supabase
+          .from('profiles')
+          .update({ role: 'rotc_officer' })
+          .eq('id', data.commander_id);
+
+        if (newCommanderError) throw newCommanderError;
+      }
+
+      // Save battalion data
       if (battalion) {
         await battalionService.updateBattalion(battalion.id, data);
         toast.success('Battalion updated successfully');
       } else {
-        const createData: CreateBattalionData = {
-          name: data.name,
-          location: data.location,
-          status: data.status,
-          commander_id: data.commander_id,
-          description: data.description
-        };
-        await battalionService.createBattalion(createData);
+        await battalionService.createBattalion(data);
         toast.success('Battalion created successfully');
       }
+
+      form.reset();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving battalion:', error);
       toast.error('Failed to save battalion');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -198,7 +223,7 @@ export function BattalionForm({
               name="commander_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Commander (Optional)</FormLabel>
+                  <FormLabel>ROTC Officer</FormLabel>
                   <Select
                     onValueChange={value => {
                       field.onChange(value === 'none' ? null : value);
