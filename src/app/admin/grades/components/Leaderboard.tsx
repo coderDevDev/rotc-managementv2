@@ -8,100 +8,62 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Medal, TrendingUp } from 'lucide-react';
-import { TermPerformance } from '@/lib/types/grade';
+import { Trophy } from 'lucide-react';
 
-interface LeaderboardProps {
-  data: TermPerformance[] | null;
+interface TermPerformance {
+  student_id: string;
+  student_name: string;
+  student_no: string;
+  term: string;
+  grades: {
+    academics: { id: string; score: number } | null;
+    leadership: { id: string; score: number } | null;
+    physical_fitness: { id: string; score: number } | null;
+  };
+  overall_score: number;
 }
 
-export function Leaderboard({ data }: LeaderboardProps) {
-  if (!data || data.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Performers</CardTitle>
-          <CardDescription>No performance data available</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  // Sort by overall score and add rank
-  const rankedData = data
-    .sort((a, b) => b.overall_score - a.overall_score)
-    .slice(0, 10) // Get top 10
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1
-    }));
-
+export function Leaderboard({ data }: { data: TermPerformance[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Top Performers</CardTitle>
-        <CardDescription>
-          Top 10 cadets based on overall performance
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          <Trophy className="h-5 w-5" />
+          Top Performers
+        </CardTitle>
+        <CardDescription>Top 10 cadets by overall score</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {rankedData.map(entry => (
-            <div
-              key={entry.student_id}
-              className="flex items-center justify-between p-4 rounded-lg bg-slate-50">
-              <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
-                  {entry.rank <= 3 ? (
-                    <Medal
-                      className={
-                        entry.rank === 1
-                          ? 'text-yellow-500'
-                          : entry.rank === 2
-                          ? 'text-slate-400'
-                          : 'text-amber-600'
-                      }
-                    />
-                  ) : (
-                    <span className="text-lg font-semibold text-slate-500">
-                      {entry.rank}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <div className="font-medium">{entry.student_name}</div>
-                  <div className="text-sm text-slate-500">
-                    {entry.student_no}
-                  </div>
-                </div>
+      <CardContent className="space-y-4">
+        {data.map((entry, index) => (
+          <div
+            key={entry.student_id}
+            className="flex items-center justify-between">
+            <div>
+              <div className="font-medium">
+                {index + 1}. {entry.student_name}
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2">
-                  {Object.entries(entry.grades).map(([category, grade]) => (
-                    <Badge
-                      key={category}
-                      variant={grade.score >= 90 ? 'default' : 'secondary'}
-                      className="capitalize text-white">
-                      {category}: {grade.score.toFixed(1)}%
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1 text-lg font-semibold">
-                  <TrendingUp
-                    className={`w-4 h-4 ${
-                      entry.overall_score >= 90
-                        ? 'text-green-500'
-                        : entry.overall_score >= 80
-                        ? 'text-blue-500'
-                        : 'text-gray-500'
-                    } text-xl`}
-                  />
-                  {entry.overall_score.toFixed(1)}%
-                </div>
+              <div className="text-sm text-muted-foreground">
+                {entry.student_no}
               </div>
             </div>
-          ))}
-        </div>
+            <div className="flex gap-2">
+              {Object.entries(entry.grades).map(([category, grade]) => {
+                if (!grade) return null;
+                return (
+                  <Badge
+                    key={category}
+                    variant={grade.score >= 90 ? 'default' : 'secondary'}
+                    className="capitalize text-white">
+                    {category.replace('_', ' ')}: {grade.score.toFixed(1)}%
+                  </Badge>
+                );
+              })}
+              <Badge variant="success" className="ml-2">
+                {entry.overall_score.toFixed(1)}%
+              </Badge>
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

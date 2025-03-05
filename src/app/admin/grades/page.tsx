@@ -33,7 +33,8 @@ import {
   Users,
   Target,
   TrendingUp,
-  Trophy
+  Trophy,
+  Building2
 } from 'lucide-react';
 import { GradesTable } from './components/GradesTable';
 import { GradeForm } from './components/GradeForm';
@@ -135,6 +136,12 @@ interface Battalion {
   name: string;
 }
 
+interface BattalionInfo {
+  id: string;
+  name: string;
+  total_cadets: number;
+}
+
 export default function GradesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -181,6 +188,11 @@ export default function GradesPage() {
   const [groupByTerm, setGroupByTerm] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [battalions, setBattalions] = useState<Battalion[]>([]);
+  const [officerBattalionId, setOfficerBattalionId] = useState<string | null>(
+    null
+  );
+  const [officerBattalion, setOfficerBattalion] =
+    useState<BattalionInfo | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -217,9 +229,31 @@ export default function GradesPage() {
 
         if (profileError) throw profileError;
         setUserRole(profile?.role);
-        setUserId(profile?.id); // Store user ID
+        setUserId(profile?.id);
 
-        // If user is a cadet, fetch their grades
+        // If ROTC officer, get their assigned battalion with more details
+        if (profile?.role === 'rotc_officer') {
+          const { data: battalionData } = await supabase
+            .from('battalions')
+            .select(
+              `
+              id,
+              name,
+              members:battalion_members (count)
+            `
+            )
+            .eq('commander_id', profile.id)
+            .single();
+
+          setOfficerBattalion({
+            id: battalionData.id,
+            name: battalionData.name,
+            total_cadets: battalionData.members[0].count
+          });
+          setOfficerBattalionId(battalionData.id);
+        }
+
+        // Fetch grades based on role
         if (profile?.role === 'cadet') {
           const { data: termData } = await gradeService.getCurrentTerm();
           setCurrentTerm(termData);
@@ -232,6 +266,9 @@ export default function GradesPage() {
           // Get performance stats for this cadet only
           const statsData = await gradeService.getPerformanceStats(profile.id);
           setStats(statsData);
+        } else {
+          const gradesData = await gradeService.getGrades();
+          setGrades(gradesData);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -275,14 +312,21 @@ export default function GradesPage() {
   // Filter grades based on course and battalion
   const filteredGrades = useMemo(() => {
     return grades.filter(grade => {
+      // Base filters for course and battalion
       const matchesCourse =
         selectedCourse === 'all' || grade.course === selectedCourse;
       const matchesBattalion =
         selectedBattalion === 'all' ||
         grade.battalion?.id === selectedBattalion;
+
+      // For ROTC officers, only show grades from their battalion
+      if (userRole === 'rotc_officer') {
+        return matchesCourse && grade.battalion?.id === officerBattalionId;
+      }
+
       return matchesCourse && matchesBattalion;
     });
-  }, [grades, selectedCourse, selectedBattalion]);
+  }, [grades, selectedCourse, selectedBattalion, userRole, officerBattalionId]);
 
   // Group grades by course if enabled
   const groupedGrades = useMemo(() => {
@@ -855,54 +899,82 @@ export default function GradesPage() {
           </Select>
         </div>
 
-        <div className="w-64">
-          <Label>Battalion</Label>
-          <Select
-            value={selectedBattalion}
-            onValueChange={setSelectedBattalion}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by battalion" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Battalions</SelectItem>
-              {battalions.map(battalion => (
-                <SelectItem key={battalion.id} value={battalion.id}>
-                  {battalion.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Only show battalion filter for non-ROTC officers */}
+        {userRole !== 'rotc_officer' && (
+          <div className="w-64">
+            <Label>Battalion</Label>
+            <Select
+              value={selectedBattalion}
+              onValueChange={setSelectedBattalion}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by battalion" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Battalions</SelectItem>
+                {battalions.map(battalion => (
+                  <SelectItem key={battalion.id} value={battalion.id}>
+                    {battalion.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {userRole === 'rotc_officer' && officerBattalion && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Battalion</CardTitle>
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{officerBattalion.name}</div>
+              <p className="text-xs text-muted-foreground">
+                {officerBattalion.total_cadets} cadets enrolled
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cadets</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {userRole === 'rotc_officer'
+                ? 'Battalion Cadets'
+                : 'Total Cadets'}
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalCadets || 0}</div>
+            <div className="text-2xl font-bold">
+              {userRole === 'rotc_officer'
+                ? officerBattalion?.total_cadets || 0
+                : stats?.totalCadets || 0}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Currently enrolled cadets
+              {userRole === 'rotc_officer'
+                ? 'Cadets in your battalion'
+                : 'Currently enrolled cadets'}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Overall Average
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Average Score</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.averageScore || 0}%
+              {stats?.averageScore.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Average performance across all categories
+              {userRole === 'rotc_officer'
+                ? 'Battalion average performance'
+                : 'Overall average performance'}
             </p>
           </CardContent>
         </Card>
@@ -913,26 +985,13 @@ export default function GradesPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.passingRate || 0}%</div>
-            <p className="text-xs text-muted-foreground">
-              Cadets meeting minimum requirements
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Top Category</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold capitalize">
-              {Object.entries(stats.categoryBreakdown)
-                .sort(([, a], [, b]) => b.average - a.average)[0]?.[0]
-                .replace('_', ' ') || 'N/A'}
+            <div className="text-2xl font-bold">
+              {stats?.passingRate.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Highest performing category
+              {userRole === 'rotc_officer'
+                ? 'Battalion passing rate'
+                : 'Overall passing rate'}
             </p>
           </CardContent>
         </Card>
@@ -940,7 +999,7 @@ export default function GradesPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="grades" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] bg-primary text-primary-foreground">
           <TabsTrigger value="grades">Grades</TabsTrigger>
           {/* <TabsTrigger value="analytics">Analytics</TabsTrigger> */}
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
