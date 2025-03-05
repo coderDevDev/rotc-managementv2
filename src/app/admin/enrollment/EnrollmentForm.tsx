@@ -897,10 +897,8 @@ export default function EnrollmentForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="MS11">MS11</SelectItem>
-                        <SelectItem value="MS21">MS21</SelectItem>
-                        <SelectItem value="MS31">MS31</SelectItem>
-                        <SelectItem value="MS41">MS41</SelectItem>
+                        <SelectItem value="MS1">MS1</SelectItem>
+                        <SelectItem value="MS2">MS2</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
