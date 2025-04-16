@@ -38,7 +38,7 @@ export default function LoginPage() {
 
       if (data.session) {
         toast.success('Logged in successfully');
-        window.location.href = '/admin';
+        window.location.href = '/admin/dashboard';
       }
     } catch (error) {
       console.error('Login error:', error);

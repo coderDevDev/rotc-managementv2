@@ -17,13 +17,11 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check if user has admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', session.user.id)
-      .single();
-
-    console.log({ profile: profile.role });
+    // const { data: profile } = await supabase
+    //   .from('profiles')
+    //   .select('role')
+    //   .eq('id', session.user.id)
+    //   .single();
 
     // if (!profile || profile.role !== 'admin' || profile.role !== 'supplier') {
     //   return NextResponse.redirect(new URL('/', request.url));

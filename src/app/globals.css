@@ -1,0 +1,55 @@
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0.5cm;
+  }
+
+  body {
+    font-size: 12pt;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr {
+    break-inside: avoid;
+    break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  .print-content {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  table {
+    width: 100%;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+}

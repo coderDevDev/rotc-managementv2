@@ -37,8 +37,37 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { RotcIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const supabase = createClientComponentClient();
+
+// Define ROTC grade calculation results type
+interface ROTCGradeCalculation {
+  attendance: number;
+  aptitude: number;
+  finalGrade: number;
+  examRaw: number;
+  examGrade: number;
+  overallGrade: number;
+  equivalent: number;
+  status: string;
+}
+
+// ROTC calculation functions
+const calculateEquivalent = (overallGrade: number): number => {
+  if (overallGrade >= 97) return 1.0;
+  if (overallGrade >= 94) return 1.25;
+  if (overallGrade >= 91) return 1.5;
+  if (overallGrade >= 88) return 1.75;
+  if (overallGrade >= 85) return 2.0;
+  if (overallGrade >= 82) return 2.25;
+  if (overallGrade >= 79) return 2.5;
+  if (overallGrade >= 76) return 2.75;
+  if (overallGrade >= 75) return 3.0;
+  return 5.0;
+};
 
 const schema = z.object({
   user_id: z.string().min(1, 'Student is required'),
@@ -51,9 +80,9 @@ const schema = z.object({
 interface GradeFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  grade?: GradeEntry | null;
+  grade?: GroupedGrade | null;
   onSuccess: () => void;
-  defaultTerm?: string;
+  defaultTerm?: string | { name: string; value: string };
   defaultUserId?: string;
 }
 
@@ -72,6 +101,17 @@ export function GradeForm({
     Array<{ id: string; full_name: string; student_no: string }>
   >([]);
   const [loading, setLoading] = useState(false);
+  const [rotcCalculations, setRotcCalculations] =
+    useState<ROTCGradeCalculation>({
+      attendance: 0,
+      aptitude: 0,
+      finalGrade: 0,
+      examRaw: 0,
+      examGrade: 0,
+      overallGrade: 0,
+      equivalent: 0,
+      status: 'FAILED'
+    });
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -95,7 +135,9 @@ export function GradeForm({
           ]);
 
           // Filter out students who already have grades for this term
-          const studentsWithGrades = new Set(gradesData.map(grade => grade.id));
+          const studentsWithGrades = new Set(
+            gradesData.map((grade: any) => grade.id)
+          );
 
           const availableStudents = studentsData.filter(
             student =>
@@ -126,56 +168,109 @@ export function GradeForm({
     }
   }, [grade, form]);
 
+  // Calculate ROTC grades whenever form values change
+  useEffect(() => {
+    // Get the current form values
+    const attendance = form.getValues().academics_score || 0;
+    const aptitude = form.getValues().leadership_score || 0;
+    const examRaw = form.getValues().physical_fitness_score || 0;
+
+    // Calculate ROTC grades
+    const finalGrade = attendance + aptitude; // Attendance (30%) + Aptitude (30%)
+    const examGrade = (examRaw / 100) * 40; // Exam score (0-100) converted to 40%
+    const overallGrade = finalGrade + examGrade;
+    const equivalent = calculateEquivalent(overallGrade);
+    const status = equivalent <= 3.0 ? 'PASSED' : 'FAILED';
+
+    // Update calculations state
+    setRotcCalculations({
+      attendance,
+      aptitude,
+      finalGrade,
+      examRaw,
+      examGrade,
+      overallGrade,
+      equivalent,
+      status
+    });
+  }, [
+    form.watch('academics_score'),
+    form.watch('leadership_score'),
+    form.watch('physical_fitness_score')
+  ]);
+
   const onSubmit = async (data: z.infer<typeof schema>) => {
     try {
       setLoading(true);
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.user) throw new Error('No user session');
-
-      const instructor_id = session.session.user.id;
-      const term = defaultTerm || (await gradeService.getCurrentTerm());
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
 
       if (grade) {
-        await gradeService.updateGrades(grade.id, {
-          academics: {
-            score: data.academics_score,
-            instructor_id
-          },
-          leadership: {
-            score: data.leadership_score,
-            instructor_id
-          },
-          physical_fitness: {
-            score: data.physical_fitness_score,
-            instructor_id
-          },
-          instructor_notes: data.instructor_notes,
-          term
-        });
+        // Update existing grades
+        const updates = [];
+
+        if (grade.grades.academics?.id) {
+          updates.push(
+            gradeService.updateGrade(grade.grades.academics.id, {
+              score: parseFloat(data.academics_score.toString()),
+              instructor_notes: data.instructor_notes
+            })
+          );
+        }
+
+        if (grade.grades.leadership?.id) {
+          updates.push(
+            gradeService.updateGrade(grade.grades.leadership.id, {
+              score: parseFloat(data.leadership_score.toString()),
+              instructor_notes: data.instructor_notes
+            })
+          );
+        }
+
+        if (grade.grades.physical_fitness?.id) {
+          updates.push(
+            gradeService.updateGrade(grade.grades.physical_fitness.id, {
+              score: parseFloat(data.physical_fitness_score.toString()),
+              instructor_notes: data.instructor_notes
+            })
+          );
+        }
+
+        await Promise.all(updates);
         toast.success('Grades updated successfully');
+        onSuccess(); // Refresh the grades data
+        onOpenChange(false);
       } else {
+        const term = defaultTerm || (await gradeService.getCurrentTerm());
+        const termName = typeof term === 'string' ? term : term.name;
+
         const gradeEntries = [
           {
             user_id: data.user_id,
-            instructor_id,
+            student_id: data.user_id,
+            instructor_id: user.id,
             category_id: 'academics' as const,
-            term,
+            term: termName,
             score: data.academics_score,
             instructor_notes: data.instructor_notes
           },
           {
             user_id: data.user_id,
-            instructor_id,
+            student_id: data.user_id,
+            instructor_id: user.id,
             category_id: 'leadership' as const,
-            term,
+            term: termName,
             score: data.leadership_score,
             instructor_notes: data.instructor_notes
           },
           {
             user_id: data.user_id,
-            instructor_id,
+            student_id: data.user_id,
+            instructor_id: user.id,
             category_id: 'physical_fitness' as const,
-            term,
+            term: termName,
             score: data.physical_fitness_score,
             instructor_notes: data.instructor_notes
           }
@@ -185,9 +280,9 @@ export function GradeForm({
           gradeEntries.map(gradeData => gradeService.addGrade(gradeData))
         );
         toast.success('Grades added successfully');
+        onSuccess();
+        onOpenChange(false);
       }
-      onSuccess();
-      onOpenChange(false);
     } catch (error) {
       console.error('Error saving grades:', error);
       toast.error('Failed to save grades');

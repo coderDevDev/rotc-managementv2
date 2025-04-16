@@ -683,7 +683,7 @@ export default function EnrollmentPage() {
               </div>
 
               <div className="flex justify-end">
-                {getStatusBadge('Enrolled')}
+                {getStatusBadge(viewDialog.enrollment.status)}
               </div>
 
               <Section

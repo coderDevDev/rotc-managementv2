@@ -48,11 +48,11 @@ const config: Config = {
           foreground: 'hsl(var(--primary-foreground))'
         },
         secondary: {
-          DEFAULT: '#5B5C64', // Tactical Gray
+          DEFAULT: '#3E3F42', // Tactical Gray
           foreground: 'hsl(var(--secondary-foreground))'
         },
         muted: {
-          DEFAULT: '#3E3F42', // Stealth Black
+          DEFAULT: '#808000', // Modern Muted (a soft, neutral grayish tone)
           foreground: 'hsl(var(--muted-foreground))'
         },
         accent: {

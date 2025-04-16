@@ -30,7 +30,7 @@ import {
 const adminLinks = [
   {
     label: 'Dashboard',
-    href: '/admin',
+    href: '/admin/dashboard',
     icon: RiDashboardLine
   },
 
@@ -83,7 +83,7 @@ const adminLinks = [
 const rotcOfficerLinks = [
   {
     label: 'Dashboard',
-    href: '/admin',
+    href: '/admin/dashboard',
     icon: RiDashboardLine
   },
   {
@@ -120,7 +120,7 @@ const rotcOfficerLinks = [
 const cadetLinks = [
   {
     label: 'Dashboard',
-    href: '/admin',
+    href: '/admin/dashboard',
     icon: RiDashboardLine
   },
   {

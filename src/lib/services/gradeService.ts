@@ -20,77 +20,108 @@ export const gradeService = {
     return data;
   },
 
-  // Get grades grouped by student
-  async getGrades(filters?: { term?: string }) {
-    let query = supabase.from('term_grades').select(`
-      *,
-      profile:user_id (
-        id,
-        full_name,
-        student_no,
-        course,
-        battalion_members (
-          battalion_id,
-          battalions (
-            id,
-            name
+  // Get grades with optional filters
+  async getGrades(filters?: {
+    term?: string;
+    userId?: string;
+    gender?: string;
+  }) {
+    try {
+      let query = supabase.from('term_grades').select(`
+        *,
+        profile:user_id (
+          id,
+          full_name,
+          student_no,
+          course,
+          gender,
+          battalion_members (
+            battalion_id,
+            battalions (
+              id,
+              name
+            )
           )
+        ),
+        category:category_id (
+          id,
+          name
         )
-      ),
-      instructor:instructor_id (
-        id,
-        full_name
-      ),
-      category:category_id (
-        id,
-        name,
-        weight
-      )
-    `);
+      `);
 
-    if (filters?.term) {
-      query = query.eq('term', filters.term);
-    }
-
-    const { data: grades, error } = await query;
-    if (error) throw error;
-
-    // Group grades by student
-    const groupedGrades = grades.reduce((acc, grade) => {
-      if (!acc[grade.user_id]) {
-        const battalionInfo = grade.profile.battalion_members?.[0]?.battalions;
-
-        acc[grade.user_id] = {
-          id: grade.user_id,
-          student_name: grade.profile.full_name,
-          student_no: grade.profile.student_no,
-          course: grade.profile.course,
-          battalion: battalionInfo,
-          battalion_id: grade.profile.battalion_members?.[0]?.battalion_id,
-          term: grade.term,
-          grades: {
-            academics: null,
-            leadership: null,
-            physical_fitness: null
-          },
-          instructor_notes: grade.instructor_notes,
-          created_at: grade.created_at,
-          updated_at: grade.updated_at
-        };
+      // Apply filters
+      if (filters?.term && filters.term !== 'all') {
+        query = query.eq('term', filters.term);
+      }
+      if (filters?.userId) {
+        query = query.eq('user_id', filters.userId);
       }
 
-      acc[grade.user_id].grades[grade.category.name.toLowerCase()] = {
-        id: grade.id,
-        score: grade.score,
-        instructor_id: grade.instructor_id,
-        instructor_name: grade.instructor.full_name,
-        updated_at: grade.updated_at
-      };
+      // Add gender filter at the database level
+      if (filters?.gender && filters.gender !== 'all') {
+        // Filter by the gender field on the profile
+        query = query.eq('profile.gender', filters.gender);
+      }
 
-      return acc;
-    }, {});
+      const { data: grades, error } = await query;
+      if (error) throw error;
 
-    return Object.values(groupedGrades);
+      // Group grades by student
+      const groupedGrades = grades.reduce((acc: any, grade: any) => {
+        if (!acc[grade.user_id]) {
+          const battalionInfo =
+            grade.profile.battalion_members?.[0]?.battalions;
+
+          acc[grade.user_id] = {
+            id: grade.user_id,
+            student_name: grade.profile.full_name,
+            student_no: grade.profile.student_no,
+            course: grade.profile.course,
+            battalion: battalionInfo,
+            battalion_id: grade.profile.battalion_members?.[0]?.battalion_id,
+            term: grade.term,
+            grades: {
+              academics: null,
+              leadership: null,
+              physical_fitness: null
+            },
+            created_at: grade.created_at,
+            updated_at: grade.updated_at,
+            gender: grade.profile.gender
+          };
+        }
+
+        // Map the category name correctly
+        let categoryKey = '';
+        switch (grade.category.name.toLowerCase()) {
+          case 'academics':
+            categoryKey = 'academics';
+            break;
+          case 'leadership':
+            categoryKey = 'leadership';
+            break;
+          case 'physical fitness':
+            categoryKey = 'physical_fitness';
+            break;
+          default:
+            categoryKey = grade.category.name.toLowerCase();
+        }
+
+        acc[grade.user_id].grades[categoryKey] = {
+          id: grade.id,
+          score: grade.score,
+          updated_at: grade.updated_at,
+          gender: grade.profile.gender
+        };
+
+        return acc;
+      }, {});
+
+      return Object.values(groupedGrades);
+    } catch (error) {
+      console.error('Error in getGrades:', error);
+      throw error;
+    }
   },
 
   // Get students for grade entry
@@ -139,71 +170,66 @@ export const gradeService = {
     return grade;
   },
 
-  // Update grade entries for a student
+  // Update grades for a student
   async updateGrades(
-    studentId: string,
+    userId: string,
     data: {
-      academics?: { score: number; instructor_id: string };
-      leadership?: { score: number; instructor_id: string };
-      physical_fitness?: { score: number; instructor_id: string };
+      academics?: { score: number };
+      leadership?: { score: number };
+      physical_fitness?: { score: number };
       instructor_notes?: string;
-      term: string;
+      term?: string;
     }
   ) {
-    const updates = [];
+    try {
+      const updates = [];
 
-    if (data.academics) {
-      updates.push(
-        supabase
-          .from('term_grades')
-          .update({
-            score: data.academics.score,
-            instructor_id: data.academics.instructor_id,
-            instructor_notes: data.instructor_notes
-          })
-          .match({
-            user_id: studentId,
-            category_id: 'academics',
-            term: data.term
-          })
-      );
+      // Get current grades
+      const { data: currentGrades, error: gradesError } = await supabase
+        .from('term_grades')
+        .select('id, category_id')
+        .eq('user_id', userId)
+        .eq('term', data.term);
+
+      if (gradesError) throw gradesError;
+
+      // Update each category if it exists
+      for (const grade of currentGrades) {
+        const categoryName = grade.category_id.toLowerCase();
+        let score;
+
+        switch (categoryName) {
+          case 'academics':
+            score = data.academics?.score;
+            break;
+          case 'leadership':
+            score = data.leadership?.score;
+            break;
+          case 'physical fitness':
+            score = data.physical_fitness?.score;
+            break;
+        }
+
+        if (score !== undefined) {
+          updates.push(
+            supabase
+              .from('term_grades')
+              .update({
+                score,
+                updated_at: new Date().toISOString(),
+                instructor_notes: data.instructor_notes
+              })
+              .eq('id', grade.id)
+          );
+        }
+      }
+
+      await Promise.all(updates);
+      return true;
+    } catch (error) {
+      console.error('Error updating grades:', error);
+      throw error;
     }
-
-    if (data.leadership) {
-      updates.push(
-        supabase
-          .from('term_grades')
-          .update({
-            score: data.leadership.score,
-            instructor_id: data.leadership.instructor_id,
-            instructor_notes: data.instructor_notes
-          })
-          .match({
-            user_id: studentId,
-            category_id: 'leadership',
-            term: data.term
-          })
-      );
-    }
-
-    if (data.physical_fitness) {
-      updates.push(
-        supabase
-          .from('term_grades')
-          .update({
-            score: data.physical_fitness.score,
-            instructor_id: data.physical_fitness.instructor_id,
-            instructor_notes: data.instructor_notes
-          })
-          .match({
-            user_id: studentId,
-            category_id: 'physical_fitness',
-            term: data.term
-          })
-      );
-    }
-
-    await Promise.all(updates);
   },
 
   // Get grade statistics
@@ -367,8 +393,14 @@ export const gradeService = {
   async getCurrentTerm() {
     const year = new Date().getFullYear();
     const month = new Date().getMonth() + 1;
-    const term = month <= 6 ? '1' : '2';
-    return `${year}-${term}`;
+    const semester = month <= 6 ? '1st' : '2nd';
+    const schoolYear =
+      month <= 6 ? `${year - 1}-${year}` : `${year}-${year + 1}`;
+
+    return {
+      name: `${semester} Semester ${schoolYear}`,
+      value: `${year}-${semester === '1st' ? '1' : '2'}`
+    };
   },
 
   // Add to existing gradeService
@@ -452,118 +484,105 @@ export const gradeService = {
 
   async getCurrentTermGrades(userId: string) {
     try {
-      // Get the grades for this user
-      const { data: gradeData, error: gradeError } = await supabase
+      // Get grades for the current term
+      const { data: grades, error } = await supabase
         .from('term_grades')
         .select(
           `
-          id,
-          term,
-          academics:academic_grades(
-            id,
-            name,
-            value,
-            instructor_id,
-            updated_at
-          ),
-          leadership:leadership_grades(
-            id,
-            name,
-            value,
-            instructor_id,
-            updated_at
-          ),
-          physical_fitness:physical_fitness_grades(
-            id,
-            name,
-            value,
-            instructor_id,
-            updated_at
-          ),
-          profiles!term_grades_user_id_fkey(
-            full_name,
-            student_no,
-            course
+          *,
+          category:category_id (
+            name
           )
         `
         )
-        .eq('user_id', userId)
-        .single();
+        .eq('user_id', userId);
 
-      if (gradeError) throw gradeError;
+      if (error) throw error;
+
+      // Format grades into the expected structure
+      const formattedGrades = {
+        grades: {},
+        overall_score: 0,
+        status: 'pending',
+        term_history: []
+      };
+
+      // Group current term grades by category
+      grades.forEach(grade => {
+        const categoryName = grade.category.name.toLowerCase();
+        formattedGrades.grades[categoryName] = {
+          id: grade.id,
+          score: grade.score,
+          updated_at: grade.updated_at
+        };
+      });
+
+      // Calculate overall score
+      const scores = Object.values(formattedGrades.grades).map(
+        (g: any) => g.score
+      );
+      if (scores.length > 0) {
+        formattedGrades.overall_score =
+          scores.reduce((a, b) => a + b, 0) / scores.length;
+        formattedGrades.status =
+          formattedGrades.overall_score >= 75 ? 'passing' : 'failing';
+      }
 
       // Get term history
-      const { data: termHistory, error: historyError } = await supabase
+      const { data: termHistory } = await supabase
         .from('term_grades')
         .select(
           `
           term,
-          academics:academic_grades(
-            value
+          category:category_id (
+            name
           ),
-          leadership:leadership_grades(
-            value
-          ),
-          physical_fitness:physical_fitness_grades(
-            value
-          )
+          score,
+          updated_at
         `
         )
         .eq('user_id', userId)
         .order('term', { ascending: false });
 
-      if (historyError) throw historyError;
+      if (termHistory) {
+        // Group term history by term
+        const historyByTerm = termHistory.reduce((acc, grade) => {
+          if (!acc[grade.term]) {
+            acc[grade.term] = {
+              term: grade.term,
+              grades: {
+                academics: null,
+                leadership: null,
+                physical_fitness: null
+              },
+              status: 'pending'
+            };
+          }
 
-      // Calculate overall score
-      const scores = [
-        gradeData?.academics?.value,
-        gradeData?.leadership?.value,
-        gradeData?.physical_fitness?.value
-      ].filter(Boolean);
+          const categoryName = grade.category.name.toLowerCase();
+          acc[grade.term].grades[categoryName] = {
+            score: grade.score,
+            updated_at: grade.updated_at
+          };
 
-      const overall_score = scores.length
-        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-        : 0;
+          // Calculate term status
+          const termScores = Object.values(acc[grade.term].grades)
+            .filter(g => g)
+            .map((g: any) => g.score);
 
-      // Transform term history
-      const term_history = termHistory?.map(term => {
-        const termScores = [
-          term.academics?.value,
-          term.leadership?.value,
-          term.physical_fitness?.value
-        ].filter(Boolean);
+          if (termScores.length > 0) {
+            const average =
+              termScores.reduce((a, b) => a + b, 0) / termScores.length;
+            acc[grade.term].status = average >= 75 ? 'passing' : 'failing';
+          }
 
-        const termOverall = termScores.length
-          ? Math.round(
-              termScores.reduce((a, b) => a + b, 0) / termScores.length
-            )
-          : 0;
+          return acc;
+        }, {});
 
-        return {
-          term: term.term,
-          grades: {
-            academics: term.academics || null,
-            leadership: term.leadership || null,
-            physical_fitness: term.physical_fitness || null
-          },
-          overall_score: termOverall,
-          status: this.determineStatus(termOverall)
-        };
-      });
+        formattedGrades.term_history = Object.values(historyByTerm);
+      }
 
-      return {
-        grades: {
-          academics: gradeData?.academics || null,
-          leadership: gradeData?.leadership || null,
-          physical_fitness: gradeData?.physical_fitness || null
-        },
-        student_name: gradeData?.profiles?.full_name,
-        student_no: gradeData?.profiles?.student_no,
-        course: gradeData?.profiles?.course,
-        overall_score,
-        term_history,
-        status: this.determineStatus(overall_score)
-      };
+      return formattedGrades;
     } catch (error) {
       console.error('Error fetching cadet grades:', error);
       throw error;
@@ -759,5 +778,98 @@ export const gradeService = {
       console.error('Error fetching performance stats:', error);
       throw error;
     }
+  },
+
+  // Update grade entry
+  async updateGrade(
+    gradeId: string,
+    data: {
+      score: number;
+      instructor_notes?: string;
+    }
+  ) {
+    try {
+      const { data: updatedGrade, error } = await supabase
+        .from('term_grades')
+        .update({
+          score: data.score,
+          instructor_notes: data.instructor_notes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', gradeId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updatedGrade;
+    } catch (error) {
+      console.error('Error updating grade:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete a grade entry by its ID
+   */
+  async deleteGrade(gradeId: string): Promise<void> {
+    const { error } = await supabase.from('grades').delete().eq('id', gradeId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Export grades for a specific term as CSV
+   */
+  async exportGrades(
+    term: string | { name: string; value: string }
+  ): Promise<string> {
+    const termName = typeof term === 'string' ? term : term.name;
+    const gradesData = await this.getGrades({ term: termName });
+
+    // Create CSV header
+    const headers = [
+      'Student ID',
+      'Student Name',
+      'Student No',
+      'Term',
+      'Academics',
+      'Leadership',
+      'Physical Fitness',
+      'Overall',
+      'Last Updated'
+    ];
+
+    // Convert grades to CSV rows
+    const rows = gradesData.map((grade: any) => [
+      grade.id,
+      grade.student_name,
+      grade.student_no,
+      grade.term,
+      grade.grades.academics?.score || 'N/A',
+      grade.grades.leadership?.score || 'N/A',
+      grade.grades.physical_fitness?.score || 'N/A',
+      calculateOverallScore(grade.grades),
+      new Date(grade.updated_at).toLocaleDateString()
+    ]);
+
+    // Combine header and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+  },
+
+  // Helper function to calculate overall score
+  calculateOverallScore(grades: any) {
+    const scores = Object.values(grades)
+      .filter((g: any) => g?.score)
+      .map((g: any) => g.score);
+
+    if (!scores.length) return 'N/A';
+    return (
+      scores.reduce((a: number, b: number) => a + b, 0) / scores.length
+    ).toFixed(1);
   }
 };
