@@ -141,10 +141,16 @@ export function SessionManagement({
                     </span>
                   </TableCell>
                   <TableCell>
-                    {session.location.lat.toFixed(6)},{' '}
-                    {session.location.lng.toFixed(6)}
+                    {session.location ? (
+                      <>
+                        {session.location.lat?.toFixed(6) || '0.000000'},{' '}
+                        {session.location.lng?.toFixed(6) || '0.000000'}
+                      </>
+                    ) : (
+                      'No location data'
+                    )}
                   </TableCell>
-                  <TableCell>{session.radius}m</TableCell>
+                  <TableCell>{session.radius || 0}m</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
