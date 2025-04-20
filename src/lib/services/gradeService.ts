@@ -599,65 +599,39 @@ export const gradeService = {
 
   async getPerformanceStats(userId?: string) {
     try {
+      // Get current term
       const currentTerm = await this.getCurrentTerm();
 
-      // Get term grades first
-      let query = supabase
-        .from('term_grades')
-        .select(
-          `
+      // Updated query to match the actual database schema
+      let query = supabase.from('term_grades').select(`
+        *,
+        profiles:user_id (
           id,
-          term,
-          user_id,
-          academics_id,
-          leadership_id,
-          physical_fitness_id,
-          profiles!term_grades_user_id_fkey (
-            full_name,
-            student_no,
-            course
-          )
-        `
+          full_name,
+          student_no,
+          course,
+          gender
+        ),
+        category:category_id (
+          id,
+          name
         )
-        .eq('term', currentTerm);
+      `);
 
       if (userId) {
         query = query.eq('user_id', userId);
       }
 
+      if (currentTerm?.name) {
+        query = query.eq('term', currentTerm.name);
+      }
+
       const { data: termGrades, error: termError } = await query;
       if (termError) throw termError;
 
-      // Get all grade categories
-      const { data: gradeCategories, error: gradesError } = await supabase
-        .from('grade_categories')
-        .select('*')
-        .in(
-          'id',
-          termGrades
-            .flatMap(t => [
-              t.academics_id,
-              t.leadership_id,
-              t.physical_fitness_id
-            ])
-            .filter(Boolean)
-        );
-
-      if (gradesError) throw gradesError;
-
-      // Transform the data
-      const grades = termGrades.map(term => ({
-        ...term,
-        academics: gradeCategories.find(g => g.id === term.academics_id),
-        leadership: gradeCategories.find(g => g.id === term.leadership_id),
-        physical_fitness: gradeCategories.find(
-          g => g.id === term.physical_fitness_id
-        )
-      }));
-
-      // Calculate statistics
+      // Create default stats object
       const stats = {
-        totalCadets: 0,
+        totalCadets: termGrades.length || 0,
         averageScore: 0,
         passingRate: 0,
         categoryBreakdown: {
@@ -668,109 +642,105 @@ export const gradeService = {
         coursePerformance: {} as Record<
           string,
           { total: number; average: number }
-        >
+        >,
+        recentUpdates: 0
       };
 
-      if (grades?.length) {
-        grades.forEach(grade => {
-          // Process academics
-          if (grade.academics.value !== null) {
-            stats.categoryBreakdown.academics.total++;
-            if (grade.academics.value >= 75) {
-              stats.categoryBreakdown.academics.passing++;
+      // Group grades by user_id and category
+      const groupedGrades = {};
+
+      termGrades.forEach(grade => {
+        const userId = grade.user_id;
+        const categoryName = grade.category?.name?.toLowerCase() || 'unknown';
+
+        if (!groupedGrades[userId]) {
+          groupedGrades[userId] = {
+            user_id: userId,
+            profile: grade.profiles,
+            grades: {}
+          };
+        }
+
+        groupedGrades[userId].grades[categoryName] = {
+          id: grade.id,
+          score: grade.score
+        };
+      });
+
+      // Convert to array
+      const userGrades = Object.values(groupedGrades);
+
+      // Calculate statistics
+      if (userGrades.length > 0) {
+        let totalScoreSum = 0;
+        let passingCount = 0;
+
+        userGrades.forEach(user => {
+          const grades = user.grades;
+          const scores = Object.values(grades).map(g => g.score);
+
+          if (scores.length > 0) {
+            const avgScore =
+              scores.reduce((sum, score) => sum + score, 0) / scores.length;
+            totalScoreSum += avgScore;
+
+            if (avgScore >= 75) {
+              passingCount++;
             }
-            stats.categoryBreakdown.academics.average += grade.academics.value;
-          }
 
-          // Process leadership
-          if (grade.leadership.value !== null) {
-            stats.categoryBreakdown.leadership.total++;
-            if (grade.leadership.value >= 75) {
-              stats.categoryBreakdown.leadership.passing++;
-            }
-            stats.categoryBreakdown.leadership.average +=
-              grade.leadership.value;
-          }
-
-          // Process physical fitness
-          if (grade.physical_fitness.value !== null) {
-            stats.categoryBreakdown.physical_fitness.total++;
-            if (grade.physical_fitness.value >= 75) {
-              stats.categoryBreakdown.physical_fitness.passing++;
-            }
-            stats.categoryBreakdown.physical_fitness.average +=
-              grade.physical_fitness.value;
-          }
-
-          // Process course performance
-          if (grade.profiles?.course) {
-            const course = grade.profiles.course;
-            if (!stats.coursePerformance[course]) {
-              stats.coursePerformance[course] = { total: 0, average: 0 };
-            }
-
-            // Calculate overall score for this grade
-            const scores = [
-              grade.academics.value || 0,
-              grade.leadership.value || 0,
-              grade.physical_fitness.value || 0
-            ].filter(score => score > 0);
-
-            if (scores.length > 0) {
-              const average = Math.round(
-                scores.reduce((a, b) => a + b, 0) / scores.length
-              );
+            // Process course performance
+            const course = user.profile?.course;
+            if (course) {
+              if (!stats.coursePerformance[course]) {
+                stats.coursePerformance[course] = { total: 0, average: 0 };
+              }
               stats.coursePerformance[course].total++;
-              stats.coursePerformance[course].average += average;
+              stats.coursePerformance[course].average += avgScore;
             }
+
+            // Process category breakdown
+            Object.entries(grades).forEach(([category, data]) => {
+              if (stats.categoryBreakdown[category]) {
+                stats.categoryBreakdown[category].total++;
+                stats.categoryBreakdown[category].average += data.score;
+
+                if (data.score >= 75) {
+                  stats.categoryBreakdown[category].passing++;
+                }
+              }
+            });
           }
         });
 
         // Calculate final averages
-        Object.values(stats.categoryBreakdown).forEach(cat => {
+        stats.averageScore = Math.round(totalScoreSum / userGrades.length);
+        stats.passingRate = Math.round(
+          (passingCount / userGrades.length) * 100
+        );
+
+        // Calculate category averages
+        Object.keys(stats.categoryBreakdown).forEach(category => {
+          const cat = stats.categoryBreakdown[category];
           if (cat.total > 0) {
             cat.average = Math.round(cat.average / cat.total);
           }
         });
 
-        Object.values(stats.coursePerformance).forEach(perf => {
+        // Calculate course averages
+        Object.keys(stats.coursePerformance).forEach(course => {
+          const perf = stats.coursePerformance[course];
           if (perf.total > 0) {
             perf.average = Math.round(perf.average / perf.total);
           }
         });
 
-        // Calculate overall stats
-        stats.totalCadets = userId ? 1 : grades.length;
+        // Count recent updates (last 24 hours)
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-        const validGrades = grades.filter(
-          g =>
-            g.academics.value !== null &&
-            g.leadership.value !== null &&
-            g.physical_fitness.value !== null
-        );
-
-        if (validGrades.length > 0) {
-          const totalScores = validGrades.map(g => {
-            const scores = [
-              g.academics.value || 0,
-              g.leadership.value || 0,
-              g.physical_fitness.value || 0
-            ].filter(score => score > 0);
-            return scores.length
-              ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-              : 0;
-          });
-
-          stats.averageScore = Math.round(
-            totalScores.reduce((a, b) => a + b, 0) / validGrades.length
-          );
-
-          stats.passingRate = Math.round(
-            (totalScores.filter(score => score >= 75).length /
-              validGrades.length) *
-              100
-          );
-        }
+        stats.recentUpdates = termGrades.filter(
+          grade => new Date(grade.updated_at) > oneDayAgo
+        ).length;
       }
 
       return stats;

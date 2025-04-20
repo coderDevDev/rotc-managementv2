@@ -340,33 +340,33 @@ export default function GradesPage() {
 
   useEffect(() => {
     const fetchUserAndGrades = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const supabase = createClientComponentClient();
-
-        // Get user session and profile
-        const {
-          data: { session }
-        } = await supabase.auth.getSession();
-        if (!session) {
+        const { data: session } = await supabase.auth.getSession();
+        if (!session?.user) {
           router.push('/login');
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
-          .select('role, id')
+          .select('*')
           .eq('id', session.user.id)
           .single();
 
-        if (profileError) throw profileError;
-        setUserRole(profile?.role);
-        setUserId(profile?.id);
+        if (!profile) {
+          router.push('/login');
+          return;
+        }
 
-        // Fetch grades based on role
+        setUserRole(profile.role);
+        setUserId(profile.id);
 
-        console.log({ profile });
-        if (profile?.role === 'rotc_officer') {
+        // Get current term for all users
+        const termData = await gradeService.getCurrentTerm();
+        setCurrentTerm(termData.name);
+
+        if (profile.role === 'rotc_officer') {
           // ROTC Officer logic
           const { data: battalionData } = await supabase
             .from('battalions')
@@ -380,42 +380,32 @@ export default function GradesPage() {
             .eq('commander_id', profile.id)
             .single();
 
-          setOfficerBattalion({
-            id: battalionData.id,
-            name: battalionData.name,
-            total_cadets: battalionData.members[0].count
-          });
-          setOfficerBattalionId(battalionData.id);
-
-          const gradesData = await gradeService.getGrades({
-            gender: selectedGender !== 'all' ? selectedGender : undefined
-          });
-          {
-            console.log({ gradesData });
+          if (battalionData) {
+            setOfficerBattalion({
+              id: battalionData.id,
+              name: battalionData.name,
+              total_cadets: battalionData.members[0].count
+            });
+            setOfficerBattalionId(battalionData.id);
           }
-          setGrades(gradesData);
-        } else if (profile?.role === 'cadet') {
-          // Cadet logic
-          const termData = await gradeService.getCurrentTerm();
-          setCurrentTerm(termData.name);
 
-          const gradesData = await gradeService.getGrades({
-            userId: session.user.id,
-            gender: selectedGender !== 'all' ? selectedGender : undefined
+          // Use rotcGradeService instead of gradeService
+          const gradesData = await rotcGradeService.getGrades({
+            gender: selectedGender !== 'all' ? selectedGender : undefined,
+            term: termData.name
           });
-          // Filter grades for current cadet
-          setGrades(gradesData);
 
-          // Get performance stats for this cadet only
-          const statsData = await gradeService.getPerformanceStats(profile.id);
-          setStats(statsData);
+          setGrades(gradesData);
+        } else if (profile.role === 'cadet') {
+          // For cadets, we don't load data here as CadetGradesView handles it
+          // This prevents duplicate requests
         } else {
-          // Coordinator logic
-          const termData = await gradeService.getCurrentTerm();
-          setCurrentTerm(termData.name);
-          const gradesData = await gradeService.getGrades({
-            gender: selectedGender !== 'all' ? selectedGender : undefined
+          // Admin/coordinator logic
+          const gradesData = await rotcGradeService.getGrades({
+            gender: selectedGender !== 'all' ? selectedGender : undefined,
+            term: termData.name
           });
+
           setGrades(gradesData);
         }
 
@@ -426,16 +416,17 @@ export default function GradesPage() {
           .eq('role', 'cadet')
           .not('course', 'is', null);
 
-        const uniqueCourses = [
-          ...new Set(coursesData?.map(p => p.course))
-        ].filter(Boolean);
+        // Use Array.from() to convert the Set to an array for better browser compatibility
+        const uniqueCourses = Array.from(
+          new Set(coursesData?.map(p => p.course).filter(Boolean))
+        );
         setCourses(uniqueCourses);
 
         const battalionsData = await battalionService.getBattalions();
         setBattalions(battalionsData);
       } catch (error) {
         console.error('Error fetching data:', error);
-        toast.error('Failed to load grades data');
+        toast.error('Failed to load data');
       } finally {
         setLoading(false);
       }
@@ -825,7 +816,7 @@ export default function GradesPage() {
 
         setGrades(gradesData);
       } else if (userData.role === 'cadet') {
-        // Cadet logic with gender filter
+        // Cadet logic
         const termData = await gradeService.getCurrentTerm();
         setCurrentTerm(termData.name);
 
@@ -838,17 +829,16 @@ export default function GradesPage() {
         // Filter grades for current cadet
         setGrades(gradesData);
 
-        // Rest of cadet logic...
+        // Get performance stats for this cadet only
+        const statsData = await gradeService.getPerformanceStats(profile.id);
+        setStats(statsData);
       } else {
-        // Admin logic
+        // Coordinator logic
         const termData = await gradeService.getCurrentTerm();
         setCurrentTerm(termData.name);
-
-        // Pass gender filter for admin
         const gradesData = await gradeService.getGrades({
           gender: selectedGender !== 'all' ? selectedGender : undefined
         });
-
         setGrades(gradesData);
       }
 
@@ -883,7 +873,7 @@ export default function GradesPage() {
     fetchStats();
   }, [userRole, userId]);
 
-  // Add this component for cadet view
+  // Update the CadetGradesView function
   function CadetGradesView() {
     const [loading, setLoading] = useState(true);
     const [grades, setGrades] = useState<any>(null);
@@ -904,13 +894,14 @@ export default function GradesPage() {
           const termData = await gradeService.getCurrentTerm();
           setCurrentTerm(termData.name);
 
-          // Get cadet's grades using the same service but with userId filter
-          const gradesData = await gradeService.getGrades({
-            userId: session.user.id
+          // Use rotcGradeService instead for ROTC grades
+          const rotcGrades = await rotcGradeService.getGrades({
+            userId: session.user.id,
+            term: termData.name
           });
 
-          // Since we're filtering by user ID, we'll only get one record
-          setGrades(gradesData[0] || null);
+          // Set the first grade entry (should be only one for this user)
+          setGrades(rotcGrades[0] || null);
         } catch (error) {
           console.error('Error fetching cadet grades:', error);
           toast.error('Failed to load your grades');
@@ -927,49 +918,134 @@ export default function GradesPage() {
 
     return (
       <div className="space-y-6">
-        {/* Performance Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {Object.entries(grades.grades).map(
-            ([category, data]: [string, any]) => (
-              <Card key={category}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {category.charAt(0).toUpperCase() + category.slice(1)}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {data?.score ? `${data.score.toFixed(1)}%` : 'N/A'}
-                  </div>
-                  {data?.updated_at && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Last updated:{' '}
-                      {new Date(data.updated_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )
-          )}
-        </div>
-
-        {/* Overall Performance */}
+        {/* Cadet information */}
         <Card>
           <CardHeader>
-            <CardTitle>Overall Performance</CardTitle>
-            <CardDescription>Your current term standing</CardDescription>
+            <CardTitle>Grade Summary</CardTitle>
+            <CardDescription>Term: {currentTerm}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold mb-4">
-              {calculateOverallScore(grades.grades)}%
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium mb-2">Personal Information</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Name:</span>
+                    <span>{grades.student_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Student Number:
+                    </span>
+                    <span>{grades.student_no}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Course:</span>
+                    <span>{grades.course}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Battalion:</span>
+                    <span>{grades.battalion_name || 'Not assigned'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Overall Performance</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-muted-foreground">
+                      Overall Grade:
+                    </span>
+                    <span className="font-bold">
+                      {grades.overall_grade?.toFixed(1) || '0.0'}
+                    </span>
+                  </div>
+                  <Progress value={grades.overall_grade || 0} className="h-2" />
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Equivalent:</span>
+                  <Badge
+                    variant={
+                      grades.equivalent <= 2.0
+                        ? 'success'
+                        : grades.equivalent <= 3.0
+                        ? 'secondary'
+                        : 'destructive'
+                    }>
+                    {grades.equivalent?.toFixed(1) || '0.0'}
+                  </Badge>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status:</span>
+                  <Badge
+                    variant={
+                      grades.status === 'PASSED' ? 'success' : 'destructive'
+                    }>
+                    {grades.status || 'PENDING'}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <Progress
-              value={calculateOverallScore(grades.grades)}
-              className="h-2"
-              indicatorClassName={getScoreColorClass(
-                calculateOverallScore(grades.grades)
-              )}
-            />
+          </CardContent>
+        </Card>
+
+        {/* Grade breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Grade Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium mb-2">Attendance (30%)</h3>
+                <div className="flex justify-between mb-1">
+                  <span>Days Present: {grades.attendance_days || 0}/15</span>
+                  <span>{grades.attendance_score?.toFixed(1) || '0.0'}</span>
+                </div>
+                <Progress
+                  value={((grades.attendance_score || 0) / 30) * 100}
+                  className="h-2"
+                />
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Aptitude (30%)</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Merit:</span>
+                    <span>{grades.merit || 100}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Demerit:</span>
+                    <span>{grades.demerit || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>TTL:</span>
+                    <span>{grades.ttl || 30}</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span>Score:</span>
+                    <span>{grades.aptitude_score?.toFixed(1) || '0.0'}</span>
+                  </div>
+                  <Progress
+                    value={((grades.aptitude_score || 0) / 30) * 100}
+                    className="h-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Exam (40%)</h3>
+                <div className="flex justify-between mb-1">
+                  <span>Exam Score:</span>
+                  <span>{grades.exam_score?.toFixed(1) || '0.0'}</span>
+                </div>
+                <Progress value={grades.exam_score || 0} className="h-2" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
