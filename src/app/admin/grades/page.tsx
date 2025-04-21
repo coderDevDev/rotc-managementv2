@@ -45,7 +45,7 @@ import {
   Printer,
   FileDown
 } from 'lucide-react';
-import { GradesTable } from './components/GradesTable';
+import { DataTable as GradesTable } from './components/GradesTable';
 import { GradeForm } from './components/GradeForm';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
@@ -170,6 +170,12 @@ interface ROTCGrade {
   status: string; // PASSED or FAILED
 }
 
+declare global {
+  interface Window {
+    setProcessedGradesForPrint: (data: any[]) => void;
+  }
+}
+
 export default function GradesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -203,7 +209,20 @@ export default function GradesPage() {
     coursePerformance: {}
   });
 
-  const [analyticsData, setAnalyticsData] = useState({
+  const [analyticsData, setAnalyticsData] = useState<{
+    performanceData: {
+      category: string;
+      average: number;
+      passing: number;
+      total: number;
+    }[];
+    trendData: {
+      term: string;
+      academics: number;
+      leadership: number;
+      physical_fitness: number;
+    }[];
+  }>({
     performanceData: [],
     trendData: []
   });
@@ -311,7 +330,7 @@ export default function GradesPage() {
     document.body.removeChild(link);
   };
 
-  const [processedGrades, setProcessedGrades] = useState([]);
+  const [processedGrades, setProcessedGrades] = useState<any[]>([]);
 
   // Make the setter function available to the ROTCGradesTable component
   useEffect(() => {
@@ -342,8 +361,8 @@ export default function GradesPage() {
     const fetchUserAndGrades = async () => {
       setLoading(true);
       try {
-        const { data: session } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data } = await supabase.auth.getSession();
+        if (!data?.session?.user) {
           router.push('/login');
           return;
         }
@@ -351,7 +370,7 @@ export default function GradesPage() {
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', data.session.user.id)
           .single();
 
         if (!profile) {
@@ -489,9 +508,9 @@ export default function GradesPage() {
       averageScore: Math.round(
         grades.reduce((sum, grade) => {
           const scores = [
-            grade.grades.academics?.score,
-            grade.grades.leadership?.score,
-            grade.grades.physical_fitness?.score
+            grade.grades?.academics?.score,
+            grade.grades?.leadership?.score,
+            grade.grades?.physical_fitness?.score
           ].filter(Boolean);
           return (
             sum +
@@ -504,9 +523,9 @@ export default function GradesPage() {
       passingRate: Math.round(
         (grades.filter(grade => {
           const scores = [
-            grade.grades.academics?.score,
-            grade.grades.leadership?.score,
-            grade.grades.physical_fitness?.score
+            grade.grades?.academics?.score,
+            grade.grades?.leadership?.score,
+            grade.grades?.physical_fitness?.score
           ].filter(Boolean);
           const avg = scores.length
             ? scores.reduce((a, b) => a + b, 0) / scores.length
@@ -523,41 +542,46 @@ export default function GradesPage() {
       ).length,
       categoryBreakdown: {
         academics: {
-          total: grades.filter(g => g.grades.academics?.score).length,
+          total: grades.filter(g => g.grades?.academics?.score).length,
           passing: grades.filter(
-            g => g.grades.academics?.score && g.grades.academics?.score >= 75
+            g => g.grades?.academics?.score && g.grades?.academics?.score >= 75
           ).length,
           average: Math.round(
             grades
-              .filter(g => g.grades.academics?.score)
-              .reduce((sum, g) => sum + g.grades.academics?.score, 0) /
-              grades.filter(g => g.grades.academics?.score).length
+              .filter(g => g.grades?.academics?.score)
+              .reduce((sum, g) => sum + (g.grades?.academics?.score || 0), 0) /
+              (grades.filter(g => g.grades?.academics?.score).length || 1)
           )
         },
         leadership: {
-          total: grades.filter(g => g.grades.leadership?.score).length,
+          total: grades.filter(g => g.grades?.leadership?.score).length,
           passing: grades.filter(
-            g => g.grades.leadership?.score && g.grades.leadership?.score >= 75
+            g =>
+              g.grades?.leadership?.score && g.grades?.leadership?.score >= 75
           ).length,
           average: Math.round(
             grades
-              .filter(g => g.grades.leadership?.score)
-              .reduce((sum, g) => sum + g.grades.leadership?.score, 0) /
-              grades.filter(g => g.grades.leadership?.score).length
+              .filter(g => g.grades?.leadership?.score)
+              .reduce((sum, g) => sum + (g.grades?.leadership?.score || 0), 0) /
+              (grades.filter(g => g.grades?.leadership?.score).length || 1)
           )
         },
         physical_fitness: {
-          total: grades.filter(g => g.grades.physical_fitness?.score).length,
+          total: grades.filter(g => g.grades?.physical_fitness?.score).length,
           passing: grades.filter(
             g =>
-              g.grades.physical_fitness?.score &&
-              g.grades.physical_fitness?.score >= 75
+              g.grades?.physical_fitness?.score &&
+              g.grades?.physical_fitness?.score >= 75
           ).length,
           average: Math.round(
             grades
-              .filter(g => g.grades.physical_fitness?.score)
-              .reduce((sum, g) => sum + g.grades.physical_fitness?.score, 0) /
-              grades.filter(g => g.grades.physical_fitness?.score).length
+              .filter(g => g.grades?.physical_fitness?.score)
+              .reduce(
+                (sum, g) => sum + (g.grades?.physical_fitness?.score || 0),
+                0
+              ) /
+              (grades.filter(g => g.grades?.physical_fitness?.score).length ||
+                1)
           )
         }
       },
@@ -600,11 +624,12 @@ export default function GradesPage() {
         student_no: grade.student_no,
         term: grade.term,
         grades: grade.grades,
-        overall_score:
-          Object.values(grade.grades)
-            .filter(g => g?.score)
-            .reduce((sum, g) => sum + (g?.score || 0), 0) /
-            Object.values(grade.grades).filter(g => g?.score).length || 0
+        overall_score: grade.grades
+          ? Object.values(grade.grades)
+              .filter(g => g?.score)
+              .reduce((sum, g) => sum + (g?.score || 0), 0) /
+            (Object.values(grade.grades).filter(g => g?.score).length || 1)
+          : 0
       }))
       .sort((a, b) => b.overall_score - a.overall_score)
       .slice(0, 10);
@@ -635,7 +660,6 @@ export default function GradesPage() {
       if (gradingSystem === 'rotc') {
         return;
       }
-      f;
 
       // Original stats calculation for regular grades
       // Calculate performance data
@@ -656,19 +680,19 @@ export default function GradesPage() {
           term,
           academics: Math.round(
             termGrades.reduce((sum, grade) => {
-              const score = grade.grades.academics?.score || 0;
+              const score = grade.grades?.academics?.score || 0;
               return sum + score;
             }, 0) / (termGrades.length || 1)
           ),
           leadership: Math.round(
             termGrades.reduce((sum, grade) => {
-              const score = grade.grades.leadership?.score || 0;
+              const score = grade.grades?.leadership?.score || 0;
               return sum + score;
             }, 0) / (termGrades.length || 1)
           ),
           physical_fitness: Math.round(
             termGrades.reduce((sum, grade) => {
-              const score = grade.grades.physical_fitness?.score || 0;
+              const score = grade.grades?.physical_fitness?.score || 0;
               return sum + score;
             }, 0) / (termGrades.length || 1)
           )
@@ -703,43 +727,47 @@ export default function GradesPage() {
         ).length,
         categoryBreakdown: {
           academics: {
-            total: gradesData.filter(g => g.grades.academics?.score).length,
+            total: gradesData.filter(g => g.grades?.academics?.score).length,
             passing: gradesData.filter(
-              g => g.grades.academics?.score && g.grades.academics?.score >= 75
+              g =>
+                g.grades?.academics?.score && g.grades?.academics?.score >= 75
             ).length,
             average: Math.round(
               gradesData
-                .filter(g => g.grades.academics?.score)
-                .reduce((sum, g) => sum + g.grades.academics?.score, 0) /
-                gradesData.filter(g => g.grades.academics?.score).length
+                .filter(g => g.grades?.academics?.score)
+                .reduce((sum, g) => sum + g.grades?.academics?.score, 0) /
+                gradesData.filter(g => g.grades?.academics?.score).length
             )
           },
           leadership: {
-            total: gradesData.filter(g => g.grades.leadership?.score).length,
+            total: gradesData.filter(g => g.grades?.leadership?.score).length,
             passing: gradesData.filter(
               g =>
-                g.grades.leadership?.score && g.grades.leadership?.score >= 75
+                g.grades?.leadership?.score && g.grades?.leadership?.score >= 75
             ).length,
             average: Math.round(
               gradesData
-                .filter(g => g.grades.leadership?.score)
-                .reduce((sum, g) => sum + g.grades.leadership?.score, 0) /
-                gradesData.filter(g => g.grades.leadership?.score).length
+                .filter(g => g.grades?.leadership?.score)
+                .reduce((sum, g) => sum + g.grades?.leadership?.score, 0) /
+                gradesData.filter(g => g.grades?.leadership?.score).length
             )
           },
           physical_fitness: {
-            total: gradesData.filter(g => g.grades.physical_fitness?.score)
+            total: gradesData.filter(g => g.grades?.physical_fitness?.score)
               .length,
             passing: gradesData.filter(
               g =>
-                g.grades.physical_fitness?.score &&
-                g.grades.physical_fitness?.score >= 75
+                g.grades?.physical_fitness?.score &&
+                g.grades?.physical_fitness?.score >= 75
             ).length,
             average: Math.round(
               gradesData
-                .filter(g => g.grades.physical_fitness?.score)
-                .reduce((sum, g) => sum + g.grades.physical_fitness?.score, 0) /
-                gradesData.filter(g => g.grades.physical_fitness?.score).length
+                .filter(g => g.grades?.physical_fitness?.score)
+                .reduce(
+                  (sum, g) => sum + g.grades?.physical_fitness?.score,
+                  0
+                ) /
+                gradesData.filter(g => g.grades?.physical_fitness?.score).length
             )
           }
         },
@@ -754,12 +782,12 @@ export default function GradesPage() {
           student_no: grade.student_no,
           term: grade.term,
           grades: grade.grades,
-          overall_score:
-            Math.round(
-              (grade.grades.academics?.score || 0) +
-                (grade.grades.leadership?.score || 0) +
-                (grade.grades.physical_fitness?.score || 0)
-            ) / 3
+          overall_score: grade.grades
+            ? Object.values(grade.grades)
+                .filter(g => g?.score)
+                .reduce((sum, g) => sum + (g?.score || 0), 0) /
+              (Object.values(grade.grades).filter(g => g?.score).length || 1)
+            : 0
         }))
         .sort((a, b) => b.overall_score - a.overall_score)
         .slice(0, 10);
@@ -773,17 +801,17 @@ export default function GradesPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: profile } = await supabase.auth.getUser();
-      if (!profile || !profile.user) {
+      const { data } = await supabase.auth.getSession();
+      if (!data?.session?.user) {
         router.push('/login');
         return;
       }
 
-      setUserId(profile.user.id);
+      setUserId(data.session.user.id);
       const userDataResponse = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', profile.user.id)
+        .eq('id', data.session.user.id)
         .single();
 
       if (userDataResponse.error) throw userDataResponse.error;
@@ -797,7 +825,7 @@ export default function GradesPage() {
         const battalionData = await supabase
           .from('officer_battalions')
           .select('id, name, members:cadet_count(*)')
-          .eq('officer_id', profile.user.id)
+          .eq('officer_id', data.session.user.id)
           .single();
 
         if (battalionData.error) throw battalionData.error;
@@ -822,7 +850,7 @@ export default function GradesPage() {
 
         // Pass the user ID and gender filter
         const gradesData = await gradeService.getGrades({
-          userId: profile.user.id,
+          userId: data.session.user.id,
           gender: selectedGender !== 'all' ? selectedGender : undefined
         });
 
@@ -830,7 +858,9 @@ export default function GradesPage() {
         setGrades(gradesData);
 
         // Get performance stats for this cadet only
-        const statsData = await gradeService.getPerformanceStats(profile.id);
+        const statsData = await gradeService.getPerformanceStats(
+          data.session.user.id
+        );
         setStats(statsData);
       } else {
         // Coordinator logic
@@ -1583,11 +1613,21 @@ function calculateEquivalent(overallGrade: number): number {
 }
 
 // Update the filterGrades function to work with both regular and ROTC grades
-const filterGrades = grades => {
+const filterGrades = (
+  grades,
+  {
+    searchTerm,
+    selectedCourse,
+    gradingSystem,
+    selectedBattalion,
+    userRole,
+    officerBattalionId
+  }
+) => {
   if (!grades) return [];
 
   return grades.filter(grade => {
-    // For search term
+    // Now these variables are in scope
     const searchMatch =
       !searchTerm ||
       grade.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
