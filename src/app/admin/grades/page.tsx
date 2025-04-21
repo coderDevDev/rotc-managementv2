@@ -946,6 +946,7 @@ export default function GradesPage() {
     if (loading) return <GradesPageSkeleton />;
     if (!grades) return <div>No grades found</div>;
 
+    console.log({ grades });
     return (
       <div className="space-y-6">
         {/* Cadet information */}
@@ -991,7 +992,18 @@ export default function GradesPage() {
                       {grades.overall_grade?.toFixed(1) || '0.0'}
                     </span>
                   </div>
-                  <Progress value={grades.overall_grade || 0} className="h-2" />
+                  console.log("Overall Grade Progress:", Math.min(100,
+                  Math.max(0, grades.overall_grade || 0)));
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div
+                      className="bg-primary h-2.5 rounded-full"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, grades.overall_grade || 0)
+                        )}%`
+                      }}></div>
+                  </div>
                 </div>
 
                 <div className="flex justify-between">
@@ -1035,10 +1047,17 @@ export default function GradesPage() {
                   <span>Days Present: {grades.attendance_days || 0}/15</span>
                   <span>{grades.attendance_score?.toFixed(1) || '0.0'}</span>
                 </div>
-                <Progress
-                  value={((grades.attendance_score || 0) / 30) * 100}
-                  className="h-2"
-                />
+
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                  <div
+                    className="bg-primary h-2.5 rounded-full"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, ((grades.attendance_score || 0) / 30) * 100)
+                      )}%`
+                    }}></div>
+                </div>
               </div>
 
               <div>
@@ -1060,10 +1079,16 @@ export default function GradesPage() {
                     <span>Score:</span>
                     <span>{grades.aptitude_score?.toFixed(1) || '0.0'}</span>
                   </div>
-                  <Progress
-                    value={((grades.aptitude_score || 0) / 30) * 100}
-                    className="h-2"
-                  />
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                    <div
+                      className="bg-primary h-2.5 rounded-full"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, ((grades.aptitude_score || 0) / 30) * 100)
+                        )}%`
+                      }}></div>
+                  </div>
                 </div>
               </div>
 
@@ -1073,7 +1098,16 @@ export default function GradesPage() {
                   <span>Exam Score:</span>
                   <span>{grades.exam_score?.toFixed(1) || '0.0'}</span>
                 </div>
-                <Progress value={grades.exam_score || 0} className="h-2" />
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                  <div
+                    className="bg-primary h-2.5 rounded-full"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.max(0, grades.exam_score || 0)
+                      )}%`
+                    }}></div>
+                </div>
               </div>
             </div>
           </CardContent>
