@@ -42,6 +42,7 @@ const schema = z.object({
   course: z.string().min(1, 'Course is required'),
   year_level: z.string().min(1, 'Year level is required'),
   status: z.enum(['active', 'inactive']),
+  ms: z.string().optional(),
   // Only required for new students
   password: z
     .string()
@@ -81,6 +82,8 @@ const COURSES = [
   // Add more courses as needed
 ];
 
+const MS_LEVELS = ['MS1', 'MS2', 'MS3', 'MS4'];
+
 export function StudentForm({
   open,
   onOpenChange,
@@ -106,7 +109,8 @@ export function StudentForm({
         gender: student.gender as 'male' | 'female',
         course: student.course,
         year_level: student.year_level,
-        status: student.status
+        status: student.status,
+        ms: student.ms
       });
     } else {
       form.reset({
@@ -119,7 +123,8 @@ export function StudentForm({
         course: '',
         year_level: '',
         status: 'active',
-        password: ''
+        password: '',
+        ms: ''
       });
     }
   }, [student, form]);
@@ -143,7 +148,8 @@ export function StudentForm({
             gender: data.gender,
             course: data.course,
             year_level: data.year_level,
-            status: data.status
+            status: data.status,
+            ms: data.ms
           }
         });
 
@@ -318,6 +324,35 @@ export function StudentForm({
                         <SelectItem value="2nd">2nd Year</SelectItem>
                         <SelectItem value="3rd">3rd Year</SelectItem>
                         <SelectItem value="4th">4th Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="ms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>MS Level</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select MS level" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {MS_LEVELS.map(level => (
+                          <SelectItem key={level} value={level}>
+                            {level}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

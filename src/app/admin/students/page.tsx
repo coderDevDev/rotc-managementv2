@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,13 @@ import {
   Filter,
   Download
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -38,6 +45,9 @@ export default function StudentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [courseFilter, setCourseFilter] = useState<string>('all');
+  const [msFilter, setMsFilter] = useState<string>('all');
+  const [yearFilter, setYearFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchStudents();
@@ -47,6 +57,8 @@ export default function StudentsPage() {
     try {
       setLoading(true);
       const data = await studentService.getStudents();
+
+      console.log({ data });
       setStudents(data);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -55,11 +67,50 @@ export default function StudentsPage() {
     }
   };
 
-  const filteredStudents = students.filter(
-    student =>
-      student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.student_no.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const courses = useMemo(() => {
+    const courseSet = new Set(
+      students.map(student => student.course).filter(Boolean)
+    );
+    return ['all', ...Array.from(courseSet)];
+  }, [students]);
+
+  const msLevels = useMemo(() => {
+    const msSet = new Set(students.map(student => student.ms).filter(Boolean));
+    return ['all', ...Array.from(msSet)];
+  }, [students]);
+
+  const academicYears = useMemo(() => {
+    const yearSet = new Set(
+      students
+        .map(student => {
+          const date = student.created_at || '';
+          return date ? new Date(date).getFullYear().toString() : null;
+        })
+        .filter(Boolean)
+    );
+    return ['all', ...Array.from(yearSet).sort((a, b) => b.localeCompare(a))];
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      const matchesSearch = searchQuery
+        ? student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          student.student_no.toLowerCase().includes(searchQuery.toLowerCase())
+        : true;
+
+      const matchesCourse =
+        courseFilter === 'all' ? true : student.course === courseFilter;
+
+      const matchesMS = msFilter === 'all' ? true : student.ms === msFilter;
+
+      const matchesYear =
+        yearFilter === 'all'
+          ? true
+          : student.created_at?.includes(yearFilter) || false;
+
+      return matchesSearch && matchesCourse && matchesMS && matchesYear;
+    });
+  }, [students, searchQuery, courseFilter, msFilter, yearFilter]);
 
   return (
     <div className="space-y-6 p-8">
@@ -80,7 +131,7 @@ export default function StudentsPage() {
       {/* Filters and Search */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -90,23 +141,48 @@ export default function StudentsPage() {
                 className="pl-10"
               />
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[120px]">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filter
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[200px]">
-                <DropdownMenuItem>All Students</DropdownMenuItem>
-                <DropdownMenuItem>Active</DropdownMenuItem>
-                <DropdownMenuItem>Inactive</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/* <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button> */}
+
+            {/* Course Filter */}
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by Course" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map(course => (
+                  <SelectItem key={course} value={course}>
+                    {course === 'all' ? 'All Courses' : course}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* MS Level Filter */}
+            <Select value={msFilter} onValueChange={setMsFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="MS Level" />
+              </SelectTrigger>
+              <SelectContent>
+                {msLevels.map(level => (
+                  <SelectItem key={level} value={level}>
+                    {level === 'all' ? 'All MS Levels' : level}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Year Filter */}
+            <Select value={yearFilter} onValueChange={setYearFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Academic Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {academicYears.map(year => (
+                  <SelectItem key={year} value={year}>
+                    {year === 'all' ? 'All Years' : year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -119,7 +195,8 @@ export default function StudentsPage() {
               <TableRow>
                 <TableHead>Student</TableHead>
                 <TableHead>Student No.</TableHead>
-                {/* <TableHead>Course</TableHead> */}
+                <TableHead>Course</TableHead>
+                <TableHead>MS Level</TableHead>
                 <TableHead>Year Level</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Contact</TableHead>
@@ -153,7 +230,8 @@ export default function StudentsPage() {
                       </div>
                     </TableCell>
                     <TableCell>{student.student_no}</TableCell>
-                    {/* <TableCell>{student.course}</TableCell> */}
+                    <TableCell>{student.course}</TableCell>
+                    <TableCell>{student.ms || 'N/A'}</TableCell>
                     <TableCell>{student.year_level || '1st'}</TableCell>
                     <TableCell>
                       <Badge variant={'success'}>

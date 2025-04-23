@@ -75,6 +75,7 @@ export default function RegisterPage() {
               </CardHeader>
               <CardContent className="p-6">
                 <EnrollmentForm
+                  viewOnly={false}
                   mode="register"
                   useDialog={false}
                   onSuccess={() => {

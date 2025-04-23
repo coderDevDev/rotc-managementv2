@@ -43,6 +43,11 @@ export const columns: ColumnDef<Enrollment>[] = [
       <div className="font-medium">{row.getValue('course')}</div>
     )
   },
+  {
+    accessorKey: 'ms',
+    header: 'MS Level',
+    cell: ({ row }) => <div className="font-medium">{row.getValue('ms')}</div>
+  },
   // {
   //   accessorKey: 'status',
   //   header: 'Status',

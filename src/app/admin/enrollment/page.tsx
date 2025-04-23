@@ -104,7 +104,7 @@ import EnrollmentDetails from './components/EnrollmentDetails';
 
 import { columns } from './components/columns';
 
-interface Enrollment {
+export interface Enrollment {
   id: string;
   student_no: string;
   ms: string;
@@ -112,6 +112,7 @@ interface Enrollment {
   first_name: string;
   last_name: string;
   middle_name?: string;
+  full_name?: string;
   address: {
     region_id: string;
     region_name: string;
@@ -146,7 +147,7 @@ interface Enrollment {
   willing_to_advance: boolean;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  profile: {
+  profile?: {
     id: string;
     full_name: string;
     email: string;
@@ -168,10 +169,29 @@ function DataTable<TData, TValue>({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
+  const [selectedMS, setSelectedMS] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
 
   const courses = useMemo(() => {
     const courseSet = new Set(data.map((item: any) => item.course));
     return ['all', ...Array.from(courseSet)];
+  }, [data]);
+
+  const msLevels = useMemo(() => {
+    const msSet = new Set(data.map((item: any) => item.ms).filter(Boolean));
+    return ['all', ...Array.from(msSet)];
+  }, [data]);
+
+  const academicYears = useMemo(() => {
+    const yearSet = new Set(
+      data
+        .map((item: any) => {
+          const date = item.created_at || '';
+          return date ? new Date(date).getFullYear().toString() : null;
+        })
+        .filter(Boolean)
+    );
+    return ['all', ...Array.from(yearSet).sort((a, b) => b.localeCompare(a))];
   }, [data]);
 
   const table = useReactTable({
@@ -202,13 +222,33 @@ function DataTable<TData, TValue>({
 
   const filteredData = useMemo(() => {
     let rows = table.getFilteredRowModel().rows;
+
     if (selectedCourse !== 'all') {
       rows = rows.filter(
         row => (row.original as any).course === selectedCourse
       );
     }
+
+    if (selectedMS !== 'all') {
+      rows = rows.filter(row => (row.original as any).ms === selectedMS);
+    }
+
+    if (selectedYear !== 'all') {
+      rows = rows.filter(row => {
+        const date = (row.original as any).created_at || '';
+        if (!date) return false;
+        const year = new Date(date).getFullYear().toString();
+        return year === selectedYear;
+      });
+    }
+
     return rows;
-  }, [selectedCourse, table.getFilteredRowModel().rows]);
+  }, [
+    selectedCourse,
+    selectedMS,
+    selectedYear,
+    table.getFilteredRowModel().rows
+  ]);
 
   const handleSearch = (value: string) => {
     setGlobalFilter(value);
@@ -237,6 +277,30 @@ function DataTable<TData, TValue>({
             {courses.map(course => (
               <SelectItem key={course} value={course}>
                 {course === 'all' ? 'All Courses' : course}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedMS} onValueChange={setSelectedMS}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="MS Level" />
+          </SelectTrigger>
+          <SelectContent>
+            {msLevels.map(level => (
+              <SelectItem key={level} value={level}>
+                {level === 'all' ? 'All MS Levels' : level}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Academic Year" />
+          </SelectTrigger>
+          <SelectContent>
+            {academicYears.map(year => (
+              <SelectItem key={year} value={year}>
+                {year === 'all' ? 'All Years' : year}
               </SelectItem>
             ))}
           </SelectContent>
@@ -400,6 +464,8 @@ export default function EnrollmentPage() {
   const [cadetEnrollment, setCadetEnrollment] = useState<Enrollment | null>(
     null
   );
+  const [selectedMS, setSelectedMS] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
 
   const supabase = createClientComponentClient();
 
@@ -485,17 +551,27 @@ export default function EnrollmentPage() {
     return enrollments.filter(enrollment => {
       const matchesSearch = searchTerm
         ? enrollment.full_name
-            .toLowerCase()
+            ?.toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          enrollment.student_no.toLowerCase().includes(searchTerm.toLowerCase())
+          enrollment.student_no
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase())
         : true;
 
-      const matchesCourse =
+      const matchesStatus =
         filterStatus === 'all' ? true : enrollment.status === filterStatus;
 
-      return matchesSearch && matchesCourse;
+      const matchesMS =
+        selectedMS === 'all' ? true : enrollment.ms === selectedMS;
+
+      const matchesYear =
+        selectedYear === 'all'
+          ? true
+          : enrollment.created_at?.includes(selectedYear) || false;
+
+      return matchesSearch && matchesStatus && matchesMS && matchesYear;
     });
-  }, [enrollments, searchTerm, filterStatus]);
+  }, [enrollments, searchTerm, filterStatus, selectedMS, selectedYear]);
 
   const groupedEnrollments = useMemo(() => {
     if (!groupByCourse) return { all: filteredEnrollments };
@@ -548,6 +624,20 @@ export default function EnrollmentPage() {
     !enrollments.some(app =>
       ['pending', 'approved'].includes(app.status?.toLowerCase())
     );
+
+  const msLevels = useMemo(() => {
+    const levels = new Set(enrollments.map(e => e.ms).filter(Boolean));
+    return ['all', ...Array.from(levels)];
+  }, [enrollments]);
+
+  const academicYears = useMemo(() => {
+    const years = new Set(
+      enrollments
+        .map(e => new Date(e.created_at).getFullYear().toString())
+        .filter(Boolean)
+    );
+    return ['all', ...Array.from(years).sort((a, b) => b.localeCompare(a))];
+  }, [enrollments]);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -895,7 +985,7 @@ export default function EnrollmentPage() {
                   data={enrollments.map(enrollment => ({
                     ...enrollment,
                     onView: () => handleViewDetails(enrollment),
-                    onEdit: () => handleEdit(enrollment),
+                    onEdit: () => handleViewDetails(enrollment),
                     onApprove: () =>
                       showConfirmationDialog(enrollment.id, 'approve'),
                     onReject: () =>
@@ -980,6 +1070,8 @@ export default function EnrollmentPage() {
           setViewDialog(prev => ({ ...prev, isOpen }));
           if (!isOpen) setViewLoading(false);
         }}
+        enrollment={viewDialog.enrollment}
+        viewOnly={true}
         onSuccess={fetchData}
         onError={() => {
           setViewLoading(false);

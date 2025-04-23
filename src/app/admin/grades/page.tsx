@@ -968,6 +968,8 @@ export default function GradesPage() {
                     <span className="text-muted-foreground">
                       Student Number:
                     </span>
+
+                    {console.log({ grades })}
                     <span>{grades.student_no}</span>
                   </div>
                   <div className="flex justify-between">
@@ -992,8 +994,7 @@ export default function GradesPage() {
                       {grades.overall_grade?.toFixed(1) || '0.0'}
                     </span>
                   </div>
-                  console.log("Overall Grade Progress:", Math.min(100,
-                  Math.max(0, grades.overall_grade || 0)));
+
                   <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
                     <div
                       className="bg-primary h-2.5 rounded-full"
@@ -1157,40 +1158,6 @@ export default function GradesPage() {
 
       {/* Filters */}
       <div className="mb-6 grid gap-4 md:grid-cols-4">
-        <div className="space-y-2">
-          <Label htmlFor="term">Term</Label>
-          <Select
-            value={currentTerm || 'all'}
-            onValueChange={value => setCurrentTerm(value)}>
-            <SelectTrigger id="term">
-              <SelectValue placeholder="Select Term" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Terms</SelectItem>
-              {/* Add terms from your terms array */}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="battalion">Battalion</Label>
-          <Select
-            value={selectedBattalion}
-            onValueChange={value => setSelectedBattalion(value)}>
-            <SelectTrigger id="battalion">
-              <SelectValue placeholder="Select Battalion" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Battalions</SelectItem>
-              {battalions.map(battalion => (
-                <SelectItem key={battalion.id} value={battalion.id}>
-                  {battalion.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="course">Course</Label>
           <Select

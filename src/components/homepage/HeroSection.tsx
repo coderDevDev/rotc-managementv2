@@ -41,7 +41,7 @@ export default function HeroSection() {
               transition={{ delay: 0.2, duration: 0.5 }}
               className="w-32 h-32 md:w-48 md:h-48 relative">
               <Image
-                src="/images/logo.png"
+                src="https://btmcdhltlvydssuebwir.supabase.co/storage/v1/object/public/others//LOGO.png"
                 alt="CBSUA-Sipocot ROTC Logo"
                 fill
                 className="object-contain drop-shadow-2xl"

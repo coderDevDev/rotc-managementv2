@@ -7,6 +7,16 @@ export const rotcGradeService = {
   async getGrades(options?: { userId?: string; term?: string }) {
     try {
       // Start by getting all active cadets from profiles
+
+      // LEFT JOIN enrollments table to get the student_no
+      // in enrollments i have profile_id how to left join it
+      // LEFT JOIN enrollments table to get the student_no
+      // in enrollments i have profile_id how to left join it
+      // LEFT JOIN enrollments table to get the student_no
+      // in enrollments i have profile_id how to left join it
+      // LEFT JOIN enrollments table to get the student_no
+      // in enrollments i have profile_id how to left join it
+
       let query = supabase.from('profiles').select(
         `
           id,
@@ -15,6 +25,10 @@ export const rotcGradeService = {
           course,
           role,
           battalions (id, name), 
+          enrollments!left (
+            profile_id,
+            student_no
+          ),
           rotc_grades!left (
             id,
             term,
@@ -49,10 +63,11 @@ export const rotcGradeService = {
 
       if (error) throw error;
 
-      if (options?.userId === 'f40b016e-9e2e-45ee-a678-5f7c788437fc') {
-        console.log({ data });
-      }
+      // if (options?.userId === 'f40b016e-9e2e-45ee-a678-5f7c788437fc') {
+      //   console.log({ data });
+      // }
 
+      console.log({ data });
       // Map the data to match the expected format
       return data.map(profile => {
         // Get the ROTC grade for this cadet, if it exists
@@ -61,7 +76,9 @@ export const rotcGradeService = {
         return {
           id: profile.id,
           student_name: profile.full_name,
-          student_no: profile.student_no || '',
+          student_no:
+            profile.enrollments.find(e => e.profile_id === profile.id)
+              ?.student_no || '',
           course: profile.course || 'Unknown',
           battalion_id: profile.battalions?.[0]?.id,
           battalion_name: profile.battalions?.[0]?.name,
