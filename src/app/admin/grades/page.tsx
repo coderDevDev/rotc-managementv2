@@ -1137,7 +1137,7 @@ export default function GradesPage() {
 
   // Admin View - Keep existing admin functionality
   return (
-    <div className="space-y-6 p-8">
+    <div className="">
       {/* Header Section */}
       <div className="flex justify-between items-center">
         <div>
@@ -1306,11 +1306,6 @@ export default function GradesPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="edit_grades">
-            <TabsList className="mb-4">
-              <TabsTrigger value="edit_grades">Edit Grades</TabsTrigger>
-              {/* <TabsTrigger value="print_grades">Print/Export View</TabsTrigger> */}
-            </TabsList>
-
             <TabsContent value="edit_grades">
               <ROTCGradesTable
                 data={filteredGrades || []}

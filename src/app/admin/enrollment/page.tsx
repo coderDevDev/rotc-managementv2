@@ -145,13 +145,18 @@ export interface Enrollment {
   emergency_phone: string;
   military_science?: string;
   willing_to_advance: boolean;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'archived';
   created_at: string;
   profile?: {
     id: string;
     full_name: string;
     email: string;
   };
+  onView?: (enrollment: Enrollment) => void;
+  onEdit?: (enrollment: Enrollment) => void;
+  onApprove?: (enrollment: Enrollment) => void;
+  onReject?: (enrollment: Enrollment) => void;
+  onArchive?: (enrollment: Enrollment) => void;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -187,11 +192,12 @@ function DataTable<TData, TValue>({
       data
         .map((item: any) => {
           const date = item.created_at || '';
-          return date ? new Date(date).getFullYear().toString() : null;
+          return date ? new Date(date).getFullYear().toString() : '';
         })
         .filter(Boolean)
     );
-    return ['all', ...Array.from(yearSet).sort((a, b) => b.localeCompare(a))];
+    const years = Array.from(yearSet) as string[];
+    return ['all', ...years.sort((a, b) => b.localeCompare(a))];
   }, [data]);
 
   const table = useReactTable({
@@ -216,7 +222,7 @@ function DataTable<TData, TValue>({
       globalFilter
     },
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: 'fuzzy',
+    globalFilterFn: 'fuzzy' as any,
     getFilteredRowModel: getFilteredRowModel()
   });
 
@@ -547,6 +553,20 @@ export default function EnrollmentPage() {
     });
   };
 
+  const handleArchive = async (enrollment: Enrollment) => {
+    try {
+      await enrollmentService.updateEnrollmentStatus(
+        enrollment.id,
+        'archived' as any
+      );
+      toast.success('Enrollment archived successfully');
+      fetchData(); // Refresh the list
+    } catch (error) {
+      console.error('Error archiving enrollment:', error);
+      toast.error('Failed to archive enrollment');
+    }
+  };
+
   const filteredEnrollments = useMemo(() => {
     return enrollments.filter(enrollment => {
       const matchesSearch = searchTerm
@@ -631,12 +651,16 @@ export default function EnrollmentPage() {
   }, [enrollments]);
 
   const academicYears = useMemo(() => {
-    const years = new Set(
+    const yearSet = new Set(
       enrollments
-        .map(e => new Date(e.created_at).getFullYear().toString())
+        .map(e => {
+          const date = e.created_at || '';
+          return date ? new Date(date).getFullYear().toString() : '';
+        })
         .filter(Boolean)
     );
-    return ['all', ...Array.from(years).sort((a, b) => b.localeCompare(a))];
+    const years = Array.from(yearSet) as string[];
+    return ['all', ...years.sort((a, b) => b.localeCompare(a))];
   }, [enrollments]);
 
   if (loading) {
@@ -989,7 +1013,8 @@ export default function EnrollmentPage() {
                     onApprove: () =>
                       showConfirmationDialog(enrollment.id, 'approve'),
                     onReject: () =>
-                      showConfirmationDialog(enrollment.id, 'reject')
+                      showConfirmationDialog(enrollment.id, 'reject'),
+                    onArchive: () => handleArchive(enrollment)
                   }))}
                   searchKey="student_no"
                 />

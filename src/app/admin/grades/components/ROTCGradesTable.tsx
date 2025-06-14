@@ -19,6 +19,15 @@ import { toast } from 'sonner';
 import { rotcGradeService } from '@/lib/services/rotcGradeService';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReactToPrint } from 'react-to-print';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
@@ -127,6 +136,13 @@ export function ROTCGradesTable({
     equivalent: 5.0,
     status: 'FAILED'
   });
+
+  // Add state for Chief Clerk and Commandant details
+  const [chiefClerkName, setChiefClerkName] = useState('Alan D Mondigo');
+  const [chiefClerkTitle, setChiefClerkTitle] = useState('Sgt (MI) PA');
+  const [commandantName, setCommandantName] = useState('CHESLER O MASTINO');
+  const [commandantTitle, setCommandantTitle] = useState('MAJ (INF) PA');
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
 
   // Add a reference for printing
   const printRef = useRef(null);
@@ -907,16 +923,16 @@ export function ROTCGradesTable({
           <div class="signature-block">
             <p>Prepared By:</p>
             <br/><br/>
-            <p style="text-align: center; margin: 0; font-weight: bold;">Alan D Mondigo</p>
-            <p style="text-align: center; margin: 0;">Sgt (MI) PA</p>
+            <p style="text-align: center; margin: 0; font-weight: bold;">${chiefClerkName}</p>
+            <p style="text-align: center; margin: 0;">${chiefClerkTitle}</p>
             <p style="text-align: center; margin: 0;">Chief Clerk</p>
           </div>
           
           <div class="signature-block">
             <p>CERTIFIED CORRECT:</p>
             <br/><br/>
-            <p style="text-align: center; margin: 0; font-weight: bold;">CHESLER O MASTINO</p>
-            <p style="text-align: center; margin: 0;">MAJ (INF) PA</p>
+            <p style="text-align: center; margin: 0; font-weight: bold;">${commandantName}</p>
+            <p style="text-align: center; margin: 0;">${commandantTitle}</p>
             <p style="text-align: center; margin: 0;">Commandant</p>
           </div>
         </div>
@@ -968,7 +984,7 @@ export function ROTCGradesTable({
       {/* Add print and export buttons */}
       <div className="flex justify-end mb-4 gap-2">
         <Button
-          onClick={handlePrintNative}
+          onClick={() => setShowPrintSettings(true)}
           variant="outline"
           size="sm"
           className="mr-2">
@@ -979,230 +995,273 @@ export function ROTCGradesTable({
         </Button> */}
       </div>
 
+      {/* Print Settings Dialog */}
+      <Dialog open={showPrintSettings} onOpenChange={setShowPrintSettings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Print Settings</DialogTitle>
+            <DialogDescription>
+              Configure the details for the printed grading sheet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Chief Clerk Name</Label>
+                <Input
+                  value={chiefClerkName}
+                  onChange={e => setChiefClerkName(e.target.value)}
+                  placeholder="Enter Chief Clerk name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Chief Clerk Title</Label>
+                <Input
+                  value={chiefClerkTitle}
+                  onChange={e => setChiefClerkTitle(e.target.value)}
+                  placeholder="Enter Chief Clerk title"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Commandant Name</Label>
+                <Input
+                  value={commandantName}
+                  onChange={e => setCommandantName(e.target.value)}
+                  placeholder="Enter Commandant name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Commandant Title</Label>
+                <Input
+                  value={commandantTitle}
+                  onChange={e => setCommandantTitle(e.target.value)}
+                  placeholder="Enter Commandant title"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowPrintSettings(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                handlePrintNative();
+                setShowPrintSettings(false);
+              }}>
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Printable table content */}
-      <div className="print-content" ref={printRef}>
-        <div className="rounded-md border">
+      <div className="rounded-md border">
+        {/* Header Table */}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16 text-center">NR</TableHead>
+              <TableHead className="w-40">Names</TableHead>
+              <TableHead className="w-[360px] text-center" colSpan={15}>
+                ATTENDANCE 15 TRAINING DAYS
+              </TableHead>
+              <TableHead className="w-24 text-center">
+                ATTENDANCE
+                <br />
+                30%
+              </TableHead>
+              <TableHead className="w-20 text-center">MERIT</TableHead>
+              <TableHead className="w-24 text-center">DEMERIT</TableHead>
+              <TableHead className="w-20 text-center">TTL</TableHead>
+              <TableHead className="w-24 text-center">
+                FINAL
+                <br />
+                GRADE
+              </TableHead>
+              <TableHead className="w-24 text-center">
+                EXAM
+                <br />
+                40%
+              </TableHead>
+              <TableHead className="w-28 text-center">
+                OVERALL
+                <br />
+                GRADES
+              </TableHead>
+              <TableHead className="w-24 text-center">EQUIVALENT</TableHead>
+              <TableHead className="w-24 text-center">REMARKS</TableHead>
+              <TableHead className="w-24 text-center">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+        </Table>
+        {/* Scrollable Body Table */}
+        <div className="max-h-[400px] overflow-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px] text-center">NR</TableHead>
-                <TableHead>Names</TableHead>
-                <TableHead className="text-center" colSpan={15}>
-                  ATTENDANCE 15 TRAINING DAYS
-                </TableHead>
-                <TableHead className="text-center">
-                  ATTENDANCE
-                  <br />
-                  30%
-                </TableHead>
-                <TableHead className="text-center">MERIT</TableHead>
-                <TableHead className="text-center">DEMERIT</TableHead>
-                <TableHead className="text-center">TTL</TableHead>
-                <TableHead className="text-center">
-                  FINAL
-                  <br />
-                  GRADE
-                </TableHead>
-                <TableHead className="text-center">
-                  EXAM
-                  <br />
-                  40%
-                </TableHead>
-                <TableHead className="text-center">
-                  OVERALL
-                  <br />
-                  GRADES
-                </TableHead>
-                <TableHead className="text-center">EQUIVALENT</TableHead>
-                <TableHead className="text-center">REMARKS</TableHead>
-                <TableHead className="w-[80px]">Action</TableHead>
-              </TableRow>
-            </TableHeader>
             <TableBody>
-              {console.log({ grades })}
-              {grades.map((cadet, index) => {
-                // No need to recalculate here - we already have the correct values stored in the cadet object
-                return (
-                  <TableRow key={cadet.id}>
-                    <TableCell className="text-center">{index + 1}</TableCell>
-                    <TableCell>{cadet.student_name}</TableCell>
-
-                    {/* Attendance Days 1-15 */}
-                    {Array.from({ length: 15 }, (_, idx) => (
-                      <TableCell key={idx} className="p-1 text-center">
-                        {editingId === cadet.id ? (
-                          <Button
-                            variant={
-                              editValues.attendance[idx] ? 'default' : 'outline'
-                            }
-                            className="h-6 w-8 p-0"
-                            onClick={() => toggleAttendance(idx)}>
-                            {editValues.attendance[idx] ? '2.0' : '-'}
-                          </Button>
-                        ) : cadet.attendance && cadet.attendance[idx] ? (
-                          '2.0'
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                    ))}
-
-                    {/* Attendance Score (30%) */}
-                    <TableCell className="text-center bg-green-100 font-medium">
-                      {editingId === cadet.id
-                        ? calculateAttendanceScore(
-                            editValues.attendance
-                          ).toFixed(1)
-                        : cadet.attendance_score?.toFixed(1) || '0.0'}
-                    </TableCell>
-
-                    {/* Merit */}
-                    <TableCell className="text-center">
-                      {cadet.merit || 100}
-                    </TableCell>
-
-                    {/* Demerit */}
-                    <TableCell className="text-center">
+              {grades.map((cadet, index) => (
+                <TableRow key={cadet.id}>
+                  <TableCell className="w-16 text-center">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="w-40">{cadet.student_name}</TableCell>
+                  {/* Attendance Days 1-15 */}
+                  {Array.from({ length: 15 }, (_, idx) => (
+                    <TableCell key={idx} className="w-24 p-1 text-center">
                       {editingId === cadet.id ? (
-                        <Input
-                          type="number"
-                          value={editValues.demerit}
-                          onChange={e =>
-                            handleInputChange('demerit', e.target.value)
+                        <Button
+                          variant={
+                            editValues.attendance[idx] ? 'default' : 'outline'
                           }
-                          className="w-16 h-8 text-center mx-auto"
-                        />
+                          className="h-6 w-8 p-0"
+                          onClick={() => toggleAttendance(idx)}>
+                          {editValues.attendance[idx] ? '2.0' : '-'}
+                        </Button>
+                      ) : cadet.attendance && cadet.attendance[idx] ? (
+                        '2.0'
                       ) : (
-                        cadet.demerit || 0
+                        '-'
                       )}
                     </TableCell>
-
-                    {/* TTL */}
-                    <TableCell className="text-center">
-                      {editingId === cadet.id
-                        ? (editValues.demerit * 0.3).toFixed(1)
-                        : (cadet.ttl || 0).toFixed(1)}
-                    </TableCell>
-
-                    {/* Final Grade */}
-                    <TableCell className="text-center font-medium">
-                      {editingId === cadet.id ? (
-                        <Input
-                          type="number"
-                          value={editValues.finalGrade}
-                          onChange={e =>
-                            handleInputChange('finalGrade', e.target.value)
-                          }
-                          className="w-16 h-8 text-center mx-auto"
-                        />
-                      ) : (
-                        cadet.final_grade?.toFixed(1) || '0.0'
-                      )}
-                    </TableCell>
-
-                    {/* Exam Grade */}
-                    <TableCell className="text-center">
-                      {editingId === cadet.id
-                        ? (editValues.finalGrade * 0.4).toFixed(1)
-                        : cadet.exam_score?.toFixed(1) || '0.0'}
-                    </TableCell>
-
-                    {/* Overall Grade */}
-                    <TableCell className="text-center font-medium">
-                      {editingId === cadet.id
-                        ? (
-                            calculateAttendanceScore(editValues.attendance) +
-                            editValues.demerit * 0.3 +
-                            editValues.finalGrade * 0.4
-                          ).toFixed(1)
-                        : cadet.overall_grade?.toFixed(1) || '0.0'}
-                    </TableCell>
-
-                    {/* Equivalent */}
-                    <TableCell className="text-center">
-                      {editingId === cadet.id ? (
-                        <Badge
-                          variant={
-                            calculations.equivalent <= 2.0
-                              ? 'success'
-                              : calculations.equivalent <= 3.0
-                              ? 'secondary'
-                              : 'destructive'
-                          }>
-                          {calculations.equivalent.toFixed(1)}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant={
-                            cadet.equivalent <= 2.0
-                              ? 'success'
-                              : cadet.equivalent <= 3.0
-                              ? 'secondary'
-                              : 'destructive'
-                          }>
-                          {cadet.equivalent?.toFixed(1) || '5.0'}
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    {/* Remarks */}
-                    <TableCell className="text-center font-bold">
-                      {editingId === cadet.id ? (
-                        <Badge
-                          variant={
-                            calculations.status === 'PASSED'
-                              ? 'success'
-                              : 'destructive'
-                          }>
-                          {calculations.status}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant={
-                            cadet.status === 'PASSED'
-                              ? 'success'
-                              : 'destructive'
-                          }>
-                          {cadet.status || 'FAILED'}
-                        </Badge>
-                      )}
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell>
-                      {editingId === cadet.id ? (
-                        <div className="flex space-x-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleSave}
-                            disabled={loading}>
-                            {loading ? (
-                              <span className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={handleCancel}
-                            disabled={loading}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
+                  ))}
+                  <TableCell className="w-24 text-center bg-green-100 font-medium">
+                    {editingId === cadet.id
+                      ? calculateAttendanceScore(editValues.attendance).toFixed(
+                          1
+                        )
+                      : cadet.attendance_score?.toFixed(1) || '0.0'}
+                  </TableCell>
+                  <TableCell className="w-20 text-center">
+                    {cadet.merit || 100}
+                  </TableCell>
+                  <TableCell className="w-24 text-center">
+                    {editingId === cadet.id ? (
+                      <Input
+                        type="text"
+                        value={editValues.demerit}
+                        onChange={e =>
+                          handleInputChange('demerit', e.target.value)
+                        }
+                        className="w-16 h-8 text-center mx-auto"
+                      />
+                    ) : (
+                      cadet.demerit || 0
+                    )}
+                  </TableCell>
+                  <TableCell className="w-20 text-center">
+                    {editingId === cadet.id
+                      ? (editValues.demerit * 0.3).toFixed(1)
+                      : (cadet.ttl || 0).toFixed(1)}
+                  </TableCell>
+                  <TableCell className="w-24 text-center font-medium">
+                    {editingId === cadet.id ? (
+                      <Input
+                        type="text"
+                        value={editValues.finalGrade}
+                        onChange={e =>
+                          handleInputChange('finalGrade', e.target.value)
+                        }
+                        className="w-16 h-8 text-center mx-auto"
+                      />
+                    ) : (
+                      cadet.final_grade?.toFixed(1) || '0.0'
+                    )}
+                  </TableCell>
+                  <TableCell className="w-24 text-center">
+                    {editingId === cadet.id
+                      ? (editValues.finalGrade * 0.4).toFixed(1)
+                      : cadet.exam_score?.toFixed(1) || '0.0'}
+                  </TableCell>
+                  <TableCell className="w-28 text-center font-medium">
+                    {editingId === cadet.id
+                      ? (
+                          calculateAttendanceScore(editValues.attendance) +
+                          editValues.demerit * 0.3 +
+                          editValues.finalGrade * 0.4
+                        ).toFixed(1)
+                      : cadet.overall_grade?.toFixed(1) || '0.0'}
+                  </TableCell>
+                  <TableCell className="w-24 text-center">
+                    {editingId === cadet.id ? (
+                      <Badge
+                        variant={
+                          calculations.equivalent <= 2.0
+                            ? 'success'
+                            : calculations.equivalent <= 3.0
+                            ? 'secondary'
+                            : 'destructive'
+                        }>
+                        {calculations.equivalent.toFixed(1)}
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={
+                          cadet.equivalent <= 2.0
+                            ? 'success'
+                            : cadet.equivalent <= 3.0
+                            ? 'secondary'
+                            : 'destructive'
+                        }>
+                        {cadet.equivalent?.toFixed(1) || '5.0'}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-24 text-center font-bold">
+                    {editingId === cadet.id ? (
+                      <Badge
+                        variant={
+                          calculations.status === 'PASSED'
+                            ? 'success'
+                            : 'destructive'
+                        }>
+                        {calculations.status}
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={
+                          cadet.status === 'PASSED' ? 'success' : 'destructive'
+                        }>
+                        {cadet.status || 'FAILED'}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-24 text-center">
+                    {editingId === cadet.id ? (
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleSave}
+                          disabled={loading}>
+                          {loading ? (
+                            <span className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleEditRow(cadet)}>
-                          <Edit className="h-4 w-4" />
+                          onClick={handleCancel}
+                          disabled={loading}>
+                          <X className="h-4 w-4" />
                         </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditRow(cadet)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>

@@ -9,7 +9,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Eye, Edit, MoreHorizontal, Check, X } from 'lucide-react';
+import {
+  Eye,
+  Edit,
+  MoreHorizontal,
+  Check,
+  X,
+  Archive,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Archive as ArchiveIcon
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const columns: ColumnDef<Enrollment>[] = [
@@ -48,35 +59,33 @@ export const columns: ColumnDef<Enrollment>[] = [
     header: 'MS Level',
     cell: ({ row }) => <div className="font-medium">{row.getValue('ms')}</div>
   },
-  // {
-  //   accessorKey: 'status',
-  //   header: 'Status',
-  //   cell: ({ row }) => {
-  //     const status = row.getValue('status') as
-  //       | 'pending'
-  //       | 'approved'
-  //       | 'rejected';
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = row.getValue('status') as string;
 
-  //     return (
-  //       <Badge
-  //         className={cn(
-  //           'capitalize',
-  //           status === 'approved' &&
-  //             'bg-green-100 text-green-800 hover:bg-green-100',
-  //           status === 'pending' &&
-  //             'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
-  //           status === 'rejected' && 'bg-red-100 text-red-800 hover:bg-red-100'
-  //         )}>
-  //         {status === 'approved' && <Check className="w-3 h-3 mr-1" />}
-  //         {status === 'pending' && (
-  //           <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2" />
-  //         )}
-  //         {status === 'rejected' && <X className="w-3 h-3 mr-1" />}
-  //         {status}
-  //       </Badge>
-  //     );
-  //   }
-  // },
+      return (
+        <Badge
+          className={cn(
+            'capitalize',
+            status === 'approved' &&
+              'bg-green-100 text-green-800 hover:bg-green-100',
+            status === 'pending' &&
+              'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+            status === 'rejected' && 'bg-red-100 text-red-800 hover:bg-red-100',
+            status === 'archived' &&
+              'bg-gray-100 text-gray-800 hover:bg-gray-100'
+          )}>
+          {status === 'approved' && <CheckCircle className="w-3 h-3 mr-1" />}
+          {status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+          {status === 'rejected' && <XCircle className="w-3 h-3 mr-1" />}
+          {status === 'archived' && <ArchiveIcon className="w-3 h-3 mr-1" />}
+          {status}
+        </Badge>
+      );
+    }
+  },
   {
     id: 'actions',
     cell: ({ row }) => {
@@ -104,7 +113,7 @@ export const columns: ColumnDef<Enrollment>[] = [
               <Edit className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem> */}
-            {/* {enrollment.status === 'pending' && (
+            {enrollment.status === 'pending' && (
               <>
                 <DropdownMenuItem
                   onClick={() => enrollment.onApprove?.(enrollment)}
@@ -119,7 +128,13 @@ export const columns: ColumnDef<Enrollment>[] = [
                   Reject
                 </DropdownMenuItem>
               </>
-            )} */}
+            )}
+            <DropdownMenuItem
+              onClick={() => enrollment.onArchive?.(enrollment)}
+              className="cursor-pointer text-gray-600">
+              <Archive className="mr-2 h-4 w-4" />
+              Archive
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );

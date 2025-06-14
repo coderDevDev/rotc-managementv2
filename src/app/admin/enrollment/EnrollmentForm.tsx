@@ -661,7 +661,7 @@ export default function EnrollmentForm({
                   control={form.control}
                   name="email"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="md:col-span-2">
                       <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input

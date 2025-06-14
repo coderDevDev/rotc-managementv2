@@ -184,7 +184,7 @@ export const enrollmentService = {
   // Update enrollment status (for admin)
   async updateEnrollmentStatus(
     id: string,
-    status: 'pending' | 'approved' | 'rejected'
+    status: 'pending' | 'approved' | 'rejected' | 'archived'
   ) {
     const { data: enrollment, error } = await supabase
       .from('enrollments')
