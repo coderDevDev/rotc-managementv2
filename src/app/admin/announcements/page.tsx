@@ -512,12 +512,13 @@ export default function AnnouncementsPage() {
                 content: '',
                 type: 'Event',
                 status: 'draft',
-                priority: 'Medium',
+                priority: 'High',
                 publish_date: new Date().toISOString(),
                 audience: 'All Cadets',
                 created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              } as Announcement);
+                updated_at: new Date().toISOString(),
+                created_by: ''
+              } as unknown as Announcement);
               setFormOpen(true);
             }}
           />
@@ -531,7 +532,7 @@ export default function AnnouncementsPage() {
           setFormOpen(open);
           if (!open) setSelectedAnnouncement(null);
         }}
-        announcement={selectedAnnouncement}
+        announcement={selectedAnnouncement as Announcement | undefined}
         onSuccess={() => {
           fetchAnnouncements();
           setSelectedAnnouncement(null);
