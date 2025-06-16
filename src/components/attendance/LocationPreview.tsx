@@ -15,6 +15,9 @@ import { Loader2, MapPin, Check } from 'lucide-react';
 import { attendanceService } from '@/lib/services/attendanceService';
 import { toast } from 'sonner';
 import { format, formatDistanceToNow } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
   throw new Error('Mapbox token is required');
@@ -71,6 +74,11 @@ export function LocationPreview({
     endTime: string;
   }>();
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [studentNo, setStudentNo] = useState('');
+  const [studentNoError, setStudentNoError] = useState<string | undefined>();
+  const [isValidatingStudentNo, setIsValidatingStudentNo] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const supabase = createClientComponentClient();
 
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -350,8 +358,82 @@ export function LocationPreview({
     }
   }, [open, sessionId]);
 
+  // Add useEffect to get current user ID
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('dex', session.user.id);
+        setCurrentUserId(session.user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Modify validateStudentNo function to show toast errors
+  const validateStudentNo = async () => {
+    if (!studentNo.trim()) {
+      setStudentNoError('Student number is required');
+      toast.error('Student number is required');
+      return false;
+    }
+
+    if (!currentUserId) {
+      setStudentNoError('User session not found');
+      toast.error('Please log in to continue');
+      return false;
+    }
+
+    setIsValidatingStudentNo(true);
+    setStudentNoError(undefined);
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('id, student_no')
+        .eq('student_no', studentNo.trim())
+        .single();
+
+      if (error || !profile) {
+        setStudentNoError('Invalid student number');
+        toast.error('Invalid student number');
+        return false;
+      }
+
+      // Check if the student number belongs to the current user
+      if (profile.id !== currentUserId) {
+        setStudentNoError(
+          'This student number does not belong to your account'
+        );
+        toast.error('This student number does not belong to your account');
+        return false;
+      }
+
+      toast.success('Student number verified');
+      return true;
+    } catch (error) {
+      console.error('Error validating student number:', error);
+      setStudentNoError('Error validating student number');
+      toast.error('Error validating student number');
+      return false;
+    } finally {
+      setIsValidatingStudentNo(false);
+    }
+  };
+
+  // Modify handleSubmit to include student number validation
   const handleSubmit = async () => {
-    if (!userLocation) return;
+    if (!userLocation) {
+      toast.error('Please get your location first');
+      return;
+    }
+
+    const isValidStudentNo = await validateStudentNo();
+    if (!isValidStudentNo) {
+      return;
+    }
 
     try {
       setLoading(true);
@@ -415,6 +497,22 @@ export function LocationPreview({
             )}
           </div>
           <div className="space-y-2">
+            <Label htmlFor="studentNo">Student Number</Label>
+            <Input
+              id="studentNo"
+              placeholder="Enter your student number"
+              value={studentNo}
+              onChange={e => {
+                setStudentNo(e.target.value);
+                setStudentNoError(undefined);
+              }}
+              className={studentNoError ? 'border-red-500' : ''}
+            />
+            {studentNoError && (
+              <p className="text-sm text-red-500">{studentNoError}</p>
+            )}
+          </div>
+          <div className="space-y-2">
             {hasSubmitted ? (
               <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-600">
                 ⚠️ You have already submitted attendance for this session
@@ -465,36 +563,32 @@ export function LocationPreview({
             )}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={
               loading ||
-              // !userLocation ||
-              // Boolean(distance && distance > radius) ||
-              hasSubmitted
+              !userLocation ||
+              !distance ||
+              distance > radius ||
+              isValidatingStudentNo
             }>
             {loading ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Recording...
               </>
-            ) : hasSubmitted ? (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Already Submitted
-              </>
             ) : (
-              <>
-                <Check className="w-4 h-4 mr-2" />
-                Confirm Attendance
-              </>
+              'Confirm Attendance'
             )}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
