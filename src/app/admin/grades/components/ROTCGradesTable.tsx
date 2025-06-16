@@ -724,7 +724,11 @@ export function ROTCGradesTable({
         <h2 style="margin: 4px 0; font-weight: bold; font-size: 18px;">COMPUTATION OF GRADES</h2>
         <p style="margin: 4px 0;">(ROTC MS-32 ${term})</p>
         <p style="margin: 4px 0;">(${
-          gender === 'female' ? 'FEMALE' : 'MALE'
+          gender === 'all'
+            ? 'MALE AND FEMALE CADETS'
+            : gender === 'female'
+            ? 'FEMALE'
+            : 'MALE'
         })</p>
       </div>
     `;
