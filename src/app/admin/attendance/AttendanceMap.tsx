@@ -12,6 +12,8 @@ if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
   throw new Error('Mapbox token is required');
 }
 
+console.log({ dex: process.env.NEXT_PUBLIC_MAPBOX_TOKEN });
+
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
 interface AttendanceMapProps {
@@ -41,14 +43,26 @@ export default function AttendanceMap({ session }: AttendanceMapProps) {
     if (!mapContainer.current) return;
 
     try {
-      const center = session?.location
-        ? [session.location.lng, session.location.lat]
-        : DEFAULT_CENTER;
+      // Validate coordinates
+      let center: [number, number] = DEFAULT_CENTER;
+      if (session?.location) {
+        const { lng, lat } = session.location;
+        if (
+          typeof lng === 'number' &&
+          !isNaN(lng) &&
+          typeof lat === 'number' &&
+          !isNaN(lat)
+        ) {
+          center = [lng, lat];
+        } else {
+          console.warn('Invalid session coordinates, using default center');
+        }
+      }
 
       const newMap = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: center as [number, number],
+        center: center,
         zoom: DEFAULT_ZOOM
       });
 
@@ -66,13 +80,25 @@ export default function AttendanceMap({ session }: AttendanceMapProps) {
           return;
         }
 
+        // Validate session coordinates before adding layers
+        const { lng, lat } = session.location;
+        if (
+          typeof lng !== 'number' ||
+          isNaN(lng) ||
+          typeof lat !== 'number' ||
+          isNaN(lat)
+        ) {
+          console.error('Invalid session coordinates');
+          return;
+        }
+
         // Add radius circle and marker for active session
         try {
           newMap.addSource('radius', {
             type: 'geojson',
             data: createGeoJSONCircle(
-              [session.location.lng, session.location.lat],
-              session.radius
+              [lng, lat],
+              session.radius || 100 // Default radius if not specified
             )
           });
 
@@ -97,7 +123,7 @@ export default function AttendanceMap({ session }: AttendanceMapProps) {
           });
 
           marker.current = new mapboxgl.Marker()
-            .setLngLat([session.location.lng, session.location.lat])
+            .setLngLat([lng, lat])
             .addTo(newMap);
         } catch (error) {
           console.error('Error adding session layers:', error);
